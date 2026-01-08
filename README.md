@@ -22,5 +22,3 @@ Visual Studio Version: 17.14.23
 
 [IO](https://github.com/C-F0x/Rustio)
 
-## TKS to
-[tindy2013](https://github.com/tindy2013/Brokenithm-Android)
