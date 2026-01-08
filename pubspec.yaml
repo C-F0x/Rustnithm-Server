@@ -1,0 +1,42 @@
+name: rustnithm_server
+description: A Rust-powered server for Brokenithm with Flutter 3.38.5 UI.
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  provider: ^6.1.1
+  url_launcher: ^6.2.0
+  flutter_rust_bridge: ^1.82.6
+  network_info_plus: ^5.0.1
+  window_manager: ^0.5.1
+  ffi: ^2.1.4
+  flutter_acrylic: ^1.1.0
+
+  meta: any
+  uuid: any
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  ffigen: 9.0.1
+  flutter_launcher_icons: "^0.14.4"
+
+flutter_launcher_icons:
+  windows:
+    generate: true
+    image_path: "assets/app.png"
+    icon_size: 255
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/app.png
