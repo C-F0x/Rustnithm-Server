@@ -23,7 +23,9 @@ adb reverse doesnt work.
 
 # ToDo-list
 Slide LED light delivery
+
 Support smooth air/slide on the server UI,total only click is available.
+
 Support dual input, total server cant be clicked when io connected.
 
 ## Related
