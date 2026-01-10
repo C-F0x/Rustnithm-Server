@@ -19,6 +19,7 @@ Visual Studio Version: 17.14.23
 
 # Bug
 Cant Shutdown the server in the app until any input, just simply restart it
+
 adb reverse doesnt work.
 
 # ToDo-list
