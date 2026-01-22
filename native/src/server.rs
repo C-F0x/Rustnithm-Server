@@ -3,6 +3,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+use crate::protocol::{ProtocolParser, PacketType};
+use crate::shmem::GLOBAL_SHMEM;
+use crate::api::{report_to_flutter, send_log};
 
 pub struct ServerConfig {
     pub port: u16,
@@ -34,46 +37,61 @@ impl SensorServer {
                     s
                 },
                 Err(e) => {
-                    crate::api::send_log("ERROR".into(), format!("Bind failed: {}", e));
+                    send_log("ERROR".into(), format!("Bind failed: {}", e));
                     is_running.store(false, Ordering::SeqCst);
                     return;
                 }
             };
 
-            crate::api::send_log("INFO".into(), format!("Server listening on {}", addr));
+            send_log("INFO".into(), format!("New Protocol Server (UDP) listening on {}", addr));
 
             let mut buf = [0u8; 1024];
             while is_running.load(Ordering::SeqCst) {
                 match socket.recv_from(&mut buf) {
                     Ok((size, _)) => {
-                        if size == 48 {
+                        if size > 0 {
                             Self::handle_packet(&buf[..size]);
                         }
                     },
                     Err(e) => {
                         if e.kind() != std::io::ErrorKind::TimedOut && e.kind() != std::io::ErrorKind::WouldBlock {
-                             crate::api::send_log("DEBUG".into(), format!("Socket scan: {:?}", e.kind()));
+                             send_log("DEBUG".into(), format!("Socket error: {:?}", e.kind()));
                         }
                     }
                 }
             }
 
-            crate::api::send_log("SUCCESS".into(), "!!! PHYSICAL THREAD EXIT !!!".into());
+            send_log("SUCCESS".into(), "!!! SERVER THREAD EXIT !!!".into());
         });
     }
 
     pub fn stop(&self) {
         self.is_running.store(false, Ordering::SeqCst);
     }
-
     fn handle_packet(data: &[u8]) {
-        let raw_air = &data[8..14];
-        let raw_slider = &data[14..46];
-        let coin = data[46];
-        let service = if (data[47] & 0x01) != 0 { 1 } else { 0 };
-        let test = if (data[47] & 0x02) != 0 { 1 } else { 0 };
+        if data.is_empty() { return; }
 
-        crate::api::report_to_flutter(raw_air.to_vec(), raw_slider.to_vec(), coin, service, test);
-        crate::api::sync_to_shmem(raw_air.to_vec(), raw_slider.to_vec(), coin, service, test);
+        let header = data[0];
+        if !ProtocolParser::verify_header(header) { return; }
+        match ProtocolParser::get_type(header) {
+            Some(PacketType::Control) => {
+                if data.len() >= 7 {
+                    if let Some(payload) = ProtocolParser::parse_control(&data[1..7]) {
+                        if let Ok(lock) = GLOBAL_SHMEM.lock() {
+                                                if let Some(manager) = lock.as_ref() {
+                                                    manager.write_data(&payload.air, &payload.slider);
+                                                }
+                                            }
+                        report_to_flutter(
+                            payload.air.to_vec(),
+                            payload.slider.to_vec(),
+                            0, 0, 0
+                        );
+                    }
+                }
+            },
+
+            _ => {}
+        }
     }
 }
