@@ -1,24 +1,9 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:ffi';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:network_info_plus/network_info_plus.dart';
-import 'bridge_generated.dart';
-
-const String _base = 'rustnithm_native';
-final DynamicLibrary _dylib = () {
-  try {
-    if (Platform.isWindows) return DynamicLibrary.open('$_base.dll');
-    if (Platform.isIOS || Platform.isMacOS) return DynamicLibrary.executable();
-    return DynamicLibrary.open('lib$_base.so');
-  } catch (e) {
-    debugPrint("FATAL: 无法加载动态库 $_base.dll。错误: $e");
-    rethrow;
-  }
-}();
-
-final api = RustnithmNativeImpl(_dylib);
+import 'package:rustnithm_server/src/rust/api.dart';
 
 enum ServerProtocol { udp, tcp }
 
@@ -308,14 +293,14 @@ class ServerController extends ChangeNotifier {
       notifyListeners();
 
       await _logSub?.cancel();
-      _logSub = api.createLogStream().listen((log) {
+      _logSub = createLogStream().listen((log) {
         _logs.insert(0, log);
         if (_logs.length > 100) _logs.removeLast();
         notifyListeners();
       }, onError: (e) => debugPrint("Log Stream Error: $e"));
 
-      final result = await api
-          .startServer(
+      final result = await
+          startServer(
             port: _port,
             isUdp: _protocol == ServerProtocol.udp,
           )
@@ -327,7 +312,7 @@ class ServerController extends ChangeNotifier {
         _statusMessage = "RUNNING";
 
         await _sensorSub?.cancel();
-        _sensorSub = api.createSensorStream().listen((data) {
+        _sensorSub = createSensorStream().listen((data) {
           updateSensors(
               data.air, data.slider, data.coin, data.service, data.test);
         });
@@ -360,7 +345,7 @@ class ServerController extends ChangeNotifier {
       await _sensorSub?.cancel();
       _sensorSub = null;
 
-      await api.stopServer().timeout(const Duration(seconds: 2));
+      await stopServer().timeout(const Duration(seconds: 2));
       if (_protocol == ServerProtocol.udp) {
         final String psCommand =
             '\$client = New-Object System.Net.Sockets.UdpClient; '
@@ -410,7 +395,7 @@ class ServerController extends ChangeNotifier {
 
     if (_isRunning) {
       try {
-        api.syncToShmem(
+        syncToShmem(
           air: Uint8List.fromList(newAir),
           slider: Uint8List.fromList(newSlider),
           coin: coin,
@@ -428,6 +413,7 @@ class ServerController extends ChangeNotifier {
   void dispose() {
     _sensorSub?.cancel();
     _logSub?.cancel();
+    _debugOverlayEntry?.remove();
     super.dispose();
   }
 }

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart';
-
+import 'package:rustnithm_server/src/rust/frb_generated.dart';
 import 'data.dart';
 import 'widgets/Header.dart';
 import 'widgets/Config.dart';
@@ -32,6 +32,8 @@ class ThemeController extends ChangeNotifier {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await RustLib.init();
 
   if (Platform.isWindows) {
     await Window.initialize();

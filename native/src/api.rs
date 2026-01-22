@@ -1,9 +1,8 @@
 use crate::SERVER_INSTANCE;
 use crate::server::ServerConfig;
 use crate::shmem::GLOBAL_SHMEM;
-use flutter_rust_bridge::StreamSink;
+pub use crate::frb_generated::StreamSink;
 use std::sync::RwLock;
-use lazy_static::lazy_static;
 
 pub struct SensorData {
     pub air: Vec<u8>,
@@ -20,17 +19,21 @@ pub struct LogEntry {
 }
 
 lazy_static! {
-    pub static ref SENSOR_SINK: RwLock<Option<StreamSink<SensorData>>> = RwLock::new(None);
-    pub static ref LOG_SINK: RwLock<Option<StreamSink<LogEntry>>> = RwLock::new(None);
+    pub static ref SENSOR_SINK: std::sync::RwLock<Option<StreamSink<SensorData>>> = std::sync::RwLock::new(None);
+    pub static ref LOG_SINK: std::sync::RwLock<Option<StreamSink<LogEntry>>> = std::sync::RwLock::new(None);
 }
 
 pub fn create_sensor_stream(sink: StreamSink<SensorData>) {
-    if let Ok(mut guard) = SENSOR_SINK.write() { *guard = Some(sink); }
+    if let Ok(mut guard) = std::sync::RwLock::write(&SENSOR_SINK) {
+        *guard = Some(sink);
+    }
 }
 
 pub fn create_log_stream(sink: StreamSink<LogEntry>) {
-    if let Ok(mut guard) = LOG_SINK.write() { *guard = Some(sink); }
-    send_log("INFO".into(), "Log Stream Ready".into());
+    if let Ok(mut guard) = std::sync::RwLock::write(&LOG_SINK) {
+        *guard = Some(sink);
+    }
+    send_log("INFO".into(), "Log Stream Ready (v2)".into());
 }
 
 pub fn start_server(port: u16, is_udp: bool) -> String {
@@ -53,7 +56,7 @@ pub fn stop_server() -> bool {
         lock.stop();
     }
 
-    if let Ok(mut guard) = SENSOR_SINK.write() {
+    if let Ok(mut guard) = std::sync::RwLock::write(&SENSOR_SINK) {
         *guard = None;
     }
 
@@ -62,17 +65,27 @@ pub fn stop_server() -> bool {
 }
 
 pub fn send_log(level: String, message: String) {
-    if let Ok(guard) = LOG_SINK.read() {
-        if let Some(sink) = guard.as_ref() {
-            sink.add(LogEntry { time: "".into(), level, message });
+    if let Ok(guard) = std::sync::RwLock::read(&LOG_SINK) {
+        if let Some(sink) = &*guard {
+            let _ = sink.add(LogEntry {
+                time: chrono::Local::now().format("%H:%M:%S").to_string(),
+                level,
+                message,
+            });
         }
     }
 }
 
 pub fn report_to_flutter(air: Vec<u8>, slider: Vec<u8>, coin: u8, service: u8, test: u8) {
-    if let Ok(guard) = SENSOR_SINK.read() {
-        if let Some(sink) = guard.as_ref() {
-            sink.add(SensorData { air, slider, coin, service, test });
+    if let Ok(guard) = std::sync::RwLock::read(&SENSOR_SINK) {
+        if let Some(sink) = &*guard {
+            let _ = sink.add(SensorData {
+                air,
+                slider,
+                coin,
+                service,
+                test,
+            });
         }
     }
 }
