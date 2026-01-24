@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../data.dart';
-import '../main.dart';
+import 'package:rustnithm_server/data/state.dart';
+import 'package:rustnithm_server/main.dart';
 
 class HeaderConfig extends StatefulWidget {
   const HeaderConfig({super.key});
@@ -16,7 +16,10 @@ class _HeaderConfigState extends State<HeaderConfig> {
   @override
   void initState() {
     super.initState();
-    _portController.text = "";
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final state = context.read<ServerState>();
+      _portController.text = state.port.toString();
+    });
   }
 
   @override
@@ -27,8 +30,9 @@ class _HeaderConfigState extends State<HeaderConfig> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = context.watch<ServerController>();
+    final state = context.watch<ServerState>();
     final themeController = context.watch<ThemeController>();
+
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color textColor = isDark ? Colors.white : Colors.black87;
     final Color secondaryTextColor = isDark ? Colors.white24 : Colors.black38;
@@ -63,21 +67,21 @@ class _HeaderConfigState extends State<HeaderConfig> {
                   child: Transform.scale(
                     scale: 0.85,
                     child: Switch(
-                      value: controller.isRunning,
-                      onChanged: (_) => controller.toggleServer(),
+                      value: state.isRunning,
+                      onChanged: state.isTransitioning ? null : (_) => state.toggleServer(),
                       activeThumbColor: Colors.blueAccent,
                       activeTrackColor:
-                          Colors.blueAccent.withValues(alpha: 0.3),
+                      Colors.blueAccent.withValues(alpha: 0.3),
                     ),
                   ),
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  controller.isRunning ? "RUNNING" : "STOPPED",
+                  state.isRunning ? "RUNNING" : "STOPPED",
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: controller.isRunning
+                    color: state.isRunning
                         ? (isDark ? Colors.greenAccent : Colors.green.shade700)
                         : secondaryTextColor,
                   ),
@@ -95,19 +99,20 @@ class _HeaderConfigState extends State<HeaderConfig> {
               ),
               child: ToggleButtons(
                 isSelected: [
-                  controller.protocol == ServerProtocol.udp,
-                  controller.protocol == ServerProtocol.tcp
+                  state.protocol == ServerProtocol.udp,
+                  state.protocol == ServerProtocol.tcp
                 ],
-                onPressed: controller.isRunning
-                    ? (index) {}
+                onPressed: state.isRunning
+                    ? null
                     : (index) {
-                        controller.setProtocol(index == 0
-                            ? ServerProtocol.udp
-                            : ServerProtocol.tcp);
-                      },
+                  state.configServer(
+                    index == 0 ? ServerProtocol.udp : ServerProtocol.tcp,
+                    state.port,
+                  );
+                },
                 borderRadius: BorderRadius.circular(6),
                 constraints: const BoxConstraints(minHeight: 32, minWidth: 50),
-                fillColor: controller.isRunning
+                fillColor: state.isRunning
                     ? Colors.blueAccent.withValues(alpha: 0.4)
                     : Colors.blueAccent,
                 selectedColor: Colors.white,
@@ -115,12 +120,8 @@ class _HeaderConfigState extends State<HeaderConfig> {
                 borderColor: Colors.transparent,
                 selectedBorderColor: Colors.transparent,
                 children: const [
-                  Text('UDP',
-                      style:
-                          TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                  Text('TCP',
-                      style:
-                          TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  Text('UDP', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  Text('TCP', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
@@ -140,7 +141,7 @@ class _HeaderConfigState extends State<HeaderConfig> {
                   children: [
                     Expanded(
                       child: InkWell(
-                        onTap: () => controller.nextIp(),
+                        onTap: () => state.nextIp(),
                         borderRadius: const BorderRadius.horizontal(
                             left: Radius.circular(6)),
                         child: Padding(
@@ -152,7 +153,7 @@ class _HeaderConfigState extends State<HeaderConfig> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  controller.hostIp,
+                                  state.hostIp,
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontFamily: 'monospace',
@@ -171,7 +172,7 @@ class _HeaderConfigState extends State<HeaderConfig> {
                     VerticalDivider(
                         width: 1, color: borderColor, indent: 6, endIndent: 6),
                     IconButton(
-                      onPressed: () => controller.refreshIp(),
+                      onPressed: () => state.refreshIp(),
                       icon: Icon(Icons.refresh,
                           size: 14,
                           color: isDark ? Colors.white54 : Colors.black45),
@@ -195,7 +196,7 @@ class _HeaderConfigState extends State<HeaderConfig> {
                       height: 32,
                       child: TextField(
                         controller: _portController,
-                        enabled: !controller.isRunning,
+                        enabled: !state.isRunning,
                         keyboardType: TextInputType.number,
                         style: TextStyle(fontSize: 13, color: textColor),
                         decoration: InputDecoration(
@@ -218,12 +219,12 @@ class _HeaderConfigState extends State<HeaderConfig> {
                           disabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(6),
                             borderSide:
-                                const BorderSide(color: Colors.transparent),
+                            const BorderSide(color: Colors.transparent),
                           ),
                         ),
                         onChanged: (val) {
                           final p = int.tryParse(val);
-                          if (p != null) controller.setPort(p);
+                          if (p != null) state.configServer(state.protocol, p);
                         },
                       ),
                     ),

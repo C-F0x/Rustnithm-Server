@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../data.dart';
+import 'package:rustnithm_server/data/state.dart';
 
 class Visualizer extends StatelessWidget {
   const Visualizer({super.key});
@@ -10,9 +10,9 @@ class Visualizer extends StatelessWidget {
     final brightness = Theme.of(context).brightness;
     final isDark = brightness == Brightness.dark;
 
-    return Consumer<ServerController>(
-      builder: (context, controller, child) {
-        if (!controller.isRunning) {
+    return Consumer<ServerState>(
+      builder: (context, state, child) {
+        if (!state.isRunning) {
           return _WaitingView(isDark: isDark);
         }
 
@@ -22,12 +22,12 @@ class Visualizer extends StatelessWidget {
             children: [
               Expanded(
                 flex: 35,
-                child: _buildAirSection(context, controller, isDark),
+                child: _buildAirSection(context, state, isDark),
               ),
               Expanded(
                 flex: 65,
                 child: _buildSliderSection(
-                    context, controller, controller.sliderData, isDark),
+                    context, state, state.sliderData, isDark),
               ),
             ],
           ),
@@ -37,18 +37,19 @@ class Visualizer extends StatelessWidget {
   }
 
   Widget _buildAirSection(
-      BuildContext context, ServerController controller, bool isDark) {
+      BuildContext context, ServerState state, bool isDark) {
     final sideButtons = [
-      {'label': 'COIN', 'key': 'coin', 'val': controller.coin},
-      {'label': 'SERV', 'key': 'service', 'val': controller.service},
-      {'label': 'TEST', 'key': 'test', 'val': controller.test},
+      {'label': 'COIN', 'key': 'coin', 'val': state.coin},
+      {'label': 'SERV', 'key': 'service', 'val': state.service},
+      {'label': 'TEST', 'key': 'test', 'val': state.test},
+      {'label': 'CODE', 'key': 'code', 'val': state.code.isNotEmpty ? 1 : 0}
     ];
 
     final baseColor = isDark
         ? Colors.white.withValues(alpha: 0.05)
         : Colors.black.withValues(alpha: 0.06);
     final borderColor =
-        isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.1);
+    isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.1);
     final inactiveText = isDark ? Colors.white12 : Colors.black26;
 
     return LayoutBuilder(builder: (context, constraints) {
@@ -63,16 +64,16 @@ class Visualizer extends StatelessWidget {
                   final btn = sideButtons[index];
                   final String label = btn['label'] as String;
                   final String key = btn['key'] as String;
-                  final bool isActive = (btn['val'] as int) > 0;
+                  final bool isActive = (btn['val'] is int)
+                      ? (btn['val'] as int) > 0
+                      : (btn['val'] as String).isNotEmpty;
 
                   return Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4.0),
                       child: Listener(
-                        onPointerDown: (_) =>
-                            controller.triggerButton(key, 0, true),
-                        onPointerUp: (_) =>
-                            controller.triggerButton(key, 0, false),
+                        onPointerDown: (_) => state.updateButton(key, 0, true),
+                        onPointerUp: (_) => state.updateButton(key, 0, false),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 50),
                           decoration: BoxDecoration(
@@ -89,11 +90,7 @@ class Visualizer extends StatelessWidget {
                             child: Text(
                               label,
                               style: TextStyle(
-                                color: isActive
-                                    ? Colors.black
-                                    : (isDark
-                                        ? Colors.white38
-                                        : Colors.black45),
+                                color: isActive ? Colors.black : (isDark ? Colors.white38 : Colors.black45),
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -106,6 +103,7 @@ class Visualizer extends StatelessWidget {
                 }),
               ),
             ),
+
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 40.0),
@@ -113,28 +111,20 @@ class Visualizer extends StatelessWidget {
                   children: List.generate(6, (index) {
                     int logicNum = 6 - index;
                     int logicIndex = logicNum - 1;
-                    bool isActive = controller.airData[logicIndex] > 0;
+                    bool isActive = state.airData[logicIndex] > 0;
 
                     return Expanded(
                       child: Listener(
-                        onPointerDown: (_) =>
-                            controller.triggerButton('air', logicIndex, true),
-                        onPointerUp: (_) =>
-                            controller.triggerButton('air', logicIndex, false),
+                        onPointerDown: (_) => state.updateButton('air', logicIndex, true),
+                        onPointerUp: (_) => state.updateButton('air', logicIndex, false),
                         child: Container(
                           margin: const EdgeInsets.symmetric(vertical: 2),
                           width: double.infinity,
                           decoration: BoxDecoration(
-                            color: isActive
-                                ? (isDark
-                                    ? Colors.cyanAccent
-                                    : Colors.cyan.shade400)
-                                : baseColor,
+                            color: isActive ? (isDark ? Colors.cyanAccent : Colors.cyan.shade400) : baseColor,
                             borderRadius: BorderRadius.circular(4),
                             border: Border.all(
-                              color: isActive
-                                  ? (isDark ? Colors.white : Colors.black26)
-                                  : borderColor,
+                              color: isActive ? (isDark ? Colors.white : Colors.black26) : borderColor,
                               width: 0.5,
                             ),
                           ),
@@ -147,8 +137,7 @@ class Visualizer extends StatelessWidget {
                                   "AIR $logicNum",
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    color:
-                                        isActive ? Colors.black : inactiveText,
+                                    color: isActive ? Colors.black : inactiveText,
                                   ),
                                 ),
                               ),
@@ -161,20 +150,67 @@ class Visualizer extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 70),
+            _buildAccessCodeDisplay(state.code, isDark),
           ],
         ),
       );
     });
   }
 
-  Widget _buildSliderSection(BuildContext context, ServerController controller,
+  Widget _buildAccessCodeDisplay(String code, bool isDark) {
+    String displayCode = code.padRight(20, ' ').substring(0, 20);
+    StringBuffer formatted = StringBuffer();
+    for (int i = 0; i < displayCode.length; i++) {
+      formatted.write(displayCode[i]);
+      if ((i + 1) % 5 == 0 && i != displayCode.length - 1) {
+        formatted.write('\n');
+      }
+    }
+
+    return Container(
+      width: 80,
+      padding: const EdgeInsets.all(8.0),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.black26 : Colors.black.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isDark ? Colors.white10 : Colors.black12,
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text(
+            "ACCESS CODE",
+            style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.blueAccent),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            formatted.toString(),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.2,
+              fontWeight: FontWeight.bold,
+              fontFamily: 'monospace',
+              letterSpacing: 2,
+              color: code.isEmpty
+                  ? (isDark ? Colors.white10 : Colors.black12)
+                  : (isDark ? Colors.greenAccent : Colors.green.shade700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSliderSection(BuildContext context, ServerState state,
       List<int> sliderData, bool isDark) {
     final baseColor = isDark
         ? Colors.white.withValues(alpha: 0.05)
         : Colors.black.withValues(alpha: 0.06);
     final borderColor =
-        isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.1);
+    isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.1);
     final inactiveText = isDark ? Colors.white12 : Colors.black26;
 
     return Column(
@@ -189,9 +225,9 @@ class Visualizer extends StatelessWidget {
               return Expanded(
                 child: Listener(
                   onPointerDown: (_) =>
-                      controller.triggerButton('slider', dataIndex, true),
+                      state.updateButton('slider', dataIndex, true),
                   onPointerUp: (_) =>
-                      controller.triggerButton('slider', dataIndex, false),
+                      state.updateButton('slider', dataIndex, false),
                   child: Container(
                     margin: const EdgeInsets.all(1.5),
                     decoration: BoxDecoration(

@@ -6,64 +6,46 @@
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `LOG_SINK`, `SENSOR_SINK`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `deref`, `deref`, `initialize`, `initialize`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `SENSOR_SINK`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `deref`, `initialize`
 
 Stream<SensorData> createSensorStream() =>
     RustLib.instance.api.crateApiCreateSensorStream();
-
-Stream<LogEntry> createLogStream() =>
-    RustLib.instance.api.crateApiCreateLogStream();
 
 Future<String> startServer({required int port, required bool isUdp}) =>
     RustLib.instance.api.crateApiStartServer(port: port, isUdp: isUdp);
 
 Future<bool> stopServer() => RustLib.instance.api.crateApiStopServer();
 
-Future<void> sendLog({required String level, required String message}) =>
-    RustLib.instance.api.crateApiSendLog(level: level, message: message);
-
 Future<void> reportToFlutter(
         {required List<int> air,
         required List<int> slider,
         required int coin,
         required int service,
-        required int test}) =>
+        required int test,
+        required String code}) =>
     RustLib.instance.api.crateApiReportToFlutter(
-        air: air, slider: slider, coin: coin, service: service, test: test);
+        air: air,
+        slider: slider,
+        coin: coin,
+        service: service,
+        test: test,
+        code: code);
 
 Future<void> syncToShmem(
         {required List<int> air,
         required List<int> slider,
         required int coin,
         required int service,
-        required int test}) =>
+        required int test,
+        required String code}) =>
     RustLib.instance.api.crateApiSyncToShmem(
-        air: air, slider: slider, coin: coin, service: service, test: test);
-
-class LogEntry {
-  final String time;
-  final String level;
-  final String message;
-
-  const LogEntry({
-    required this.time,
-    required this.level,
-    required this.message,
-  });
-
-  @override
-  int get hashCode => time.hashCode ^ level.hashCode ^ message.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is LogEntry &&
-          runtimeType == other.runtimeType &&
-          time == other.time &&
-          level == other.level &&
-          message == other.message;
-}
+        air: air,
+        slider: slider,
+        coin: coin,
+        service: service,
+        test: test,
+        code: code);
 
 class SensorData {
   final Uint8List air;
@@ -71,6 +53,7 @@ class SensorData {
   final int coin;
   final int service;
   final int test;
+  final String code;
 
   const SensorData({
     required this.air,
@@ -78,6 +61,7 @@ class SensorData {
     required this.coin,
     required this.service,
     required this.test,
+    required this.code,
   });
 
   @override
@@ -86,7 +70,8 @@ class SensorData {
       slider.hashCode ^
       coin.hashCode ^
       service.hashCode ^
-      test.hashCode;
+      test.hashCode ^
+      code.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -97,5 +82,6 @@ class SensorData {
           slider == other.slider &&
           coin == other.coin &&
           service == other.service &&
-          test == other.test;
+          test == other.test &&
+          code == other.code;
 }

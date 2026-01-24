@@ -16,6 +16,4 @@ lazy_static! {
 }
 pub fn init_native_backend() {
     shmem::init_shmem();
-    println!("Native Backend: Shared Memory Initialized.");
-    println!("Native Backend: Protocol Dispatcher Ready.");
 }

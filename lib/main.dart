@@ -4,7 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart';
 import 'package:rustnithm_server/src/rust/frb_generated.dart';
-import 'data.dart';
+import 'package:rustnithm_server/data/state.dart';
+
 import 'widgets/Header.dart';
 import 'widgets/Config.dart';
 import 'widgets/Visualizer.dart';
@@ -33,6 +34,7 @@ class ThemeController extends ChangeNotifier {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // 初始化 Rust 库
   await RustLib.init();
 
   if (Platform.isWindows) {
@@ -63,7 +65,8 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => ServerController()),
+        // 2. 将 ServerController 替换为 ServerState
+        ChangeNotifierProvider(create: (_) => ServerState()),
         ChangeNotifierProvider(create: (_) => ThemeController()),
       ],
       child: const RustnithmApp(),
