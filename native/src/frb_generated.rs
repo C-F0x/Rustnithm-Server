@@ -110,7 +110,7 @@ fn wire__crate__api__report_to_flutter_impl(
             let api_coin = <u8>::sse_decode(&mut deserializer);
             let api_service = <u8>::sse_decode(&mut deserializer);
             let api_test = <u8>::sse_decode(&mut deserializer);
-            let api_code = <String>::sse_decode(&mut deserializer);
+            let api_code = <[u8; 20]>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
@@ -300,7 +300,7 @@ impl SseDecode for crate::api::SensorData {
         let mut var_coin = <u8>::sse_decode(deserializer);
         let mut var_service = <u8>::sse_decode(deserializer);
         let mut var_test = <u8>::sse_decode(deserializer);
-        let mut var_code = <String>::sse_decode(deserializer);
+        let mut var_code = <[u8; 20]>::sse_decode(deserializer);
         return crate::api::SensorData {
             air: var_air,
             slider: var_slider,
@@ -323,6 +323,14 @@ impl SseDecode for u8 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         deserializer.cursor.read_u8().unwrap()
+    }
+}
+
+impl SseDecode for [u8; 20] {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <Vec<u8>>::sse_decode(deserializer);
+        return flutter_rust_bridge::for_generated::from_vec_to_array(inner);
     }
 }
 
@@ -439,7 +447,7 @@ impl SseEncode for crate::api::SensorData {
         <u8>::sse_encode(self.coin, serializer);
         <u8>::sse_encode(self.service, serializer);
         <u8>::sse_encode(self.test, serializer);
-        <String>::sse_encode(self.code, serializer);
+        <[u8; 20]>::sse_encode(self.code, serializer);
     }
 }
 
@@ -454,6 +462,19 @@ impl SseEncode for u8 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_u8(self).unwrap();
+    }
+}
+
+impl SseEncode for [u8; 20] {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<u8>>::sse_encode(
+            {
+                let boxed: Box<[_]> = Box::new(self);
+                boxed.into_vec()
+            },
+            serializer,
+        );
     }
 }
 

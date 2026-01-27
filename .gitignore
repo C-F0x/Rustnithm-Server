@@ -29,3 +29,4 @@ lib/src/rust/frb_generated.web.dart
 # Ignore the compiled DLL manually moved to root
 rustnithm_native.dll
 *.log
+*.lock

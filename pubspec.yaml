@@ -22,6 +22,7 @@ dependencies:
 
   meta: any
   uuid: any
+  collection: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

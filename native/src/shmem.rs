@@ -1,75 +1,83 @@
 use std::sync::Mutex;
 use shared_memory::*;
+use std::slice;
+use std::sync::LazyLock;
 
 pub struct ShmemManager {
     shmem: Shmem,
 }
-
 unsafe impl Send for ShmemManager {}
 unsafe impl Sync for ShmemManager {}
 
 impl ShmemManager {
-    pub fn new(path: &str, size: usize) -> Self {
+    pub fn new(path: &str, size: usize) -> Result<Self, Box<dyn std::error::Error>> {
         let shmem = match ShmemConf::new().os_id(path).open() {
             Ok(m) => m,
             Err(_) => {
-                match ShmemConf::new().size(size).os_id(path).create() {
-                    Ok(m) => m,
-                    Err(e) => {
-                        panic!("CRITICAL: Failed to Open or Create Shmem '{}': {:?}", path, e);
-                    }
-                }
+                ShmemConf::new().size(size).os_id(path).create()?
             }
         };
-        Self { shmem }
+        Ok(Self { shmem })
     }
 
     pub fn write_data(&self, air: &[u8], slider: &[u8]) {
+        let len = self.shmem.len();
         let ptr = self.shmem.as_ptr();
-        unsafe {
-            std::ptr::copy_nonoverlapping(air.as_ptr(), ptr, 6);
-            std::ptr::copy_nonoverlapping(slider.as_ptr(), ptr.add(6), 32);
+        let data_slice = unsafe { slice::from_raw_parts_mut(ptr, len) };
+
+        if air.len() >= 6 && data_slice.len() >= 6 {
+            data_slice[0..6].copy_from_slice(&air[0..6]);
+        }
+        if slider.len() >= 32 && data_slice.len() >= 38 {
+            data_slice[6..38].copy_from_slice(&slider[0..32]);
         }
     }
 
-    pub fn write_aux(&self, coin: u8, service: u8, test: u8, code: &str) {
+    pub fn write_status(&self, coin: u8, service: u8, test: u8) {
+        let len = self.shmem.len();
         let ptr = self.shmem.as_ptr();
-        unsafe {
-            std::ptr::write(ptr.add(134), test);
-            std::ptr::write(ptr.add(135), service);
-            std::ptr::write(ptr.add(136), coin);
+        let data_slice = unsafe { slice::from_raw_parts_mut(ptr, len) };
 
-            if code.is_empty() {
-                std::ptr::write(ptr.add(138), 0);
-            } else {
-                let mut card_bytes = [0u8; 10];
-                for i in 0..10 {
-                    if i * 2 + 2 <= code.len() {
-                        if let Ok(byte) = u8::from_str_radix(&code[i*2..i*2+2], 16) {
-                            card_bytes[i] = byte;
-                        }
-                    }
-                }
-                std::ptr::copy_nonoverlapping(card_bytes.as_ptr(), ptr.add(140), 10);
-                std::ptr::write(ptr.add(139), 0);
-                std::ptr::write(ptr.add(138), 1);
-            }
+        if data_slice.len() < 137 { return; }
+        data_slice[134] = test;
+        data_slice[135] = service;
+        data_slice[136] = coin;
+    }
+
+    pub fn write_card_raw(&self, raw_bcd: &[u8]) {
+        let len = self.shmem.len();
+        let ptr = self.shmem.as_ptr();
+        let data_slice = unsafe { slice::from_raw_parts_mut(ptr, len) };
+        if data_slice.len() < 150 { return; }
+        let is_empty = raw_bcd.is_empty() || raw_bcd.iter().all(|&x| x == 0);
+
+        if is_empty {
+            data_slice[138] = 0;
+            data_slice[140..150].fill(0);
+        } else {
+            let copy_len = std::cmp::min(raw_bcd.len(), 10);
+            data_slice[140..140 + copy_len].copy_from_slice(&raw_bcd[..copy_len]);
+            data_slice[138] = 1;
         }
     }
 }
 
-lazy_static! {
-    pub static ref GLOBAL_SHMEM: Mutex<Option<ShmemManager>> = Mutex::new(None);
-}
+pub static GLOBAL_SHMEM: LazyLock<Mutex<Option<ShmemManager>>> = LazyLock::new(|| {
+    Mutex::new(None)
+});
 
-pub fn init_shmem() {
-    let mut lock = GLOBAL_SHMEM.lock().unwrap_or_else(|e| {
-        eprintln!("Warning: Shmem Mutex poisoned, recovering...");
-        e.into_inner()
-    });
-
+pub fn init_shmem() -> Result<(), String> {
+    let mut lock = GLOBAL_SHMEM.lock().map_err(|_| "Failed to lock GLOBAL_SHMEM")?;
     if lock.is_none() {
-        *lock = Some(ShmemManager::new("RustnithmSharedMemory", 1024));
-        println!("Shmem initialized successfully.");
+        match ShmemManager::new("RustnithmSharedMemory", 1024) {
+            Ok(manager) => {
+                manager.write_card_raw(&[]);
+                *lock = Some(manager);
+                Ok(())
+            }
+            Err(e) => Err(format!("Shmem Init Error: {}", e)),
+        }
+    } else {
+        Ok(())
     }
 }

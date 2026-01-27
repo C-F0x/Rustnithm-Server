@@ -79,7 +79,15 @@ class ServerState extends ChangeNotifier {
           coin = data.coin;
           service = data.service;
           test = data.test;
-          code = data.code;
+          code = data.code.map((b) => b.toString()).join('');
+          bool hasValidCard = data.code.any((digit) => digit != 0);
+
+          if (hasValidCard) {
+            code = data.code.map((b) => b.toString()).join('');
+          } else {
+            code = "";
+          }
+
           if (_isRunning) {
             _io.sync(airData, sliderData, coin, service, test, code);
           }

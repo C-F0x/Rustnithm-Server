@@ -1,4 +1,4 @@
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum PacketType {
     Heartbeat = 0b00,
     Button = 0b01,
@@ -24,14 +24,11 @@ impl ProtocolParser {
         }
     }
 
-    pub fn verify_header(_header: u8) -> bool {
-        true
-    }
     pub fn parse_control(payload: &[u8]) -> Option<ControlPayload> {
-        if payload.len() < 6 { return None; }
+        if payload.len() < 5 { return None; }
+
         let mut air = [0u8; 6];
         let air_byte = payload[0];
-
         for i in 0..6 {
             air[i] = if (air_byte & (1 << i)) != 0 { 1 } else { 0 };
         }
@@ -47,17 +44,19 @@ impl ProtocolParser {
 
         Some(ControlPayload { air, slider })
     }
-    pub fn parse_card(payload: &[u8]) -> Option<String> {
-            if payload.len() < 10 {
-                return None;
-            }
-            let mut card_number = String::with_capacity(20);
-            for &byte in payload.iter().take(10) {
-                let high = (byte >> 4) & 0x0F;
-                let low = byte & 0x0F;
-                card_number.push(std::char::from_digit(high as u32, 10)?);
-                card_number.push(std::char::from_digit(low as u32, 10)?);
-            }
-            Some(card_number)
+    pub fn parse_card(payload: &[u8]) -> Option<[u8; 20]> {
+        if payload.len() < 10 { return None; }
+
+        let mut code = [0u8; 20];
+        for i in 0..10 {
+            let byte = payload[i];
+            let high = (byte >> 4) & 0x0F;
+            let low = byte & 0x0F;
+
+            code[i * 2] = high;
+            code[i * 2 + 1] = low;
         }
+
+        Some(code)
+    }
 }
