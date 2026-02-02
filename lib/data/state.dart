@@ -61,27 +61,27 @@ class ServerState extends ChangeNotifier {
     notifyListeners();
 
     if (_isRunning) {
-      _statusMessage = "STOPPING...";
+      _statusMessage = "SUSPENDING...";
       notifyListeners();
-      await _io.stop(_port, _protocol == ServerProtocol.udp);
+      await _io.suspend();
       _isRunning = false;
-      _statusMessage = "STOPPED";
+      _statusMessage = "SUSPENDED";
+      _io.stopListening();
     } else {
-      _statusMessage = "STARTING...";
+      _statusMessage = "ACTIVATING...";
       notifyListeners();
-      final result = await _io.start(_port, _protocol == ServerProtocol.udp);
+      final result = await _io.activate(_port, _protocol == ServerProtocol.udp);
       if (result.toUpperCase().contains("SUCCESS")) {
         _isRunning = true;
-        _statusMessage = "RUNNING";
+        _statusMessage = "ACTIVE";
         _io.listenSensors((data) {
           airData = data.air;
           sliderData = data.slider;
           coin = data.coin;
           service = data.service;
           test = data.test;
-          code = data.code.map((b) => b.toString()).join('');
-          bool hasValidCard = data.code.any((digit) => digit != 0);
 
+          bool hasValidCard = data.code.any((digit) => digit != 0);
           if (hasValidCard) {
             code = data.code.map((b) => b.toString()).join('');
           } else {
@@ -137,7 +137,7 @@ class ServerState extends ChangeNotifier {
 
   @override
   void dispose() {
-    _io.stop(_port, _protocol == ServerProtocol.udp);
+    _io.suspend();
     super.dispose();
   }
 }

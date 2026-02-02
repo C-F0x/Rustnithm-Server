@@ -281,7 +281,7 @@ class _WaitingView extends StatelessWidget {
             Icon(Icons.grid_on_rounded,
                 size: 100, color: isDark ? Colors.white : Colors.black),
             const SizedBox(height: 16),
-            Text("WAITING FOR CONNECTION",
+            Text("WAITING FOR ACTIVATION",
                 style: TextStyle(
                   letterSpacing: 4,
                   fontWeight: FontWeight.bold,

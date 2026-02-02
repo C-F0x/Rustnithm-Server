@@ -33,6 +33,7 @@ pub fn start_server(port: u16, is_udp: bool) -> String {
                 port,
                 protocol: if is_udp { "udp".into() } else { "tcp".into() },
             });
+            lock.set_active(true);
             "SUCCESS".into()
         }
         Err(_) => "LOCK_ERROR".into(),
@@ -41,7 +42,7 @@ pub fn start_server(port: u16, is_udp: bool) -> String {
 
 pub fn stop_server() -> bool {
     if let Ok(lock) = SERVER_INSTANCE.try_lock() {
-        lock.stop();
+        lock.set_active(false);
     }
     if let Ok(mut guard) = SENSOR_SINK.write() {
         *guard = None;

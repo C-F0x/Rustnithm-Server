@@ -14,17 +14,25 @@ pub struct ServerConfig {
 
 pub struct SensorServer {
     is_running: Arc<AtomicBool>,
+    is_active: Arc<AtomicBool>,
 }
 
 impl SensorServer {
     pub fn new() -> Self {
         Self {
             is_running: Arc::new(AtomicBool::new(false)),
+            is_active: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    pub fn set_active(&self, active: bool) {
+        self.is_active.store(active, Ordering::SeqCst);
     }
 
     pub fn start(&self, config: ServerConfig) {
         let is_running = self.is_running.clone();
+        let is_active = self.is_active.clone();
+
         if is_running.load(Ordering::SeqCst) {
             return;
         }
@@ -48,6 +56,10 @@ impl SensorServer {
             while is_running.load(Ordering::SeqCst) {
                 match socket.recv_from(&mut buf) {
                     Ok((amt, _src)) => {
+                        if !is_active.load(Ordering::SeqCst) {
+                            continue;
+                        }
+
                         if amt == 0 { continue; }
                         let header = buf[0];
 

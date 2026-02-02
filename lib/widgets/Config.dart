@@ -62,29 +62,24 @@ class _HeaderConfigState extends State<HeaderConfig> {
           _buildConfigItem(
             child: Row(
               children: [
-                SizedBox(
-                  height: 32,
-                  child: Transform.scale(
-                    scale: 0.85,
-                    child: Switch(
-                      value: state.isRunning,
-                      onChanged: state.isTransitioning ? null : (_) => state.toggleServer(),
-                      activeThumbColor: Colors.blueAccent,
-                      activeTrackColor:
-                      Colors.blueAccent.withValues(alpha: 0.3),
-                    ),
+                Text(
+                  state.isRunning ? "ACTIVE" : "SUSPENDED",
+                  style: TextStyle(
+                    color: state.isRunning ? Colors.blueAccent : secondaryTextColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(width: 4),
-                Text(
-                  state.isRunning ? "RUNNING" : "STOPPED",
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: state.isRunning
-                        ? (isDark ? Colors.greenAccent : Colors.green.shade700)
-                        : secondaryTextColor,
-                  ),
+                const SizedBox(width: 8),
+                Switch(
+                  value: state.isRunning,
+                  onChanged: state.isTransitioning
+                      ? null
+                      : (_) => state.toggleServer(),
+                  activeThumbColor: Colors.blueAccent,
+                  activeTrackColor: Colors.blueAccent.withValues(alpha: 0.3),
+                  inactiveThumbColor: secondaryTextColor,
+                  inactiveTrackColor: secondaryTextColor.withValues(alpha: 0.1),
                 ),
               ],
             ),
