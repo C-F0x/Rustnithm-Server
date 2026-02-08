@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:rustnithm_server/data/state.dart';
+import 'dart:typed_data';
 
 class Visualizer extends StatelessWidget {
   const Visualizer({super.key});
@@ -36,13 +37,37 @@ class Visualizer extends StatelessWidget {
     );
   }
 
+  String _decodeBcd(Uint8List bcdBytes) {
+    bool hasData = false;
+    for (int i = 0; i < bcdBytes.length; i++) {
+      if (bcdBytes[i] != 0) {
+        hasData = true;
+        break;
+      }
+    }
+    if (!hasData) return "";
+    final List<int> chars = List<int>.filled(20, 0);
+
+    for (int i = 0; i < 10 && i < bcdBytes.length; i++) {
+      int byte = bcdBytes[i];
+
+      int high = (byte >> 4) & 0x0F;
+      int low = byte & 0x0F;
+
+      chars[i * 2] = high + 48;
+      chars[i * 2 + 1] = low + 48;
+    }
+    return String.fromCharCodes(chars);
+  }
   Widget _buildAirSection(
       BuildContext context, ServerState state, bool isDark) {
+    final String decodedCode = _decodeBcd(state.code);
+
     final sideButtons = [
       {'label': 'COIN', 'key': 'coin', 'val': state.coin},
       {'label': 'SERV', 'key': 'service', 'val': state.service},
       {'label': 'TEST', 'key': 'test', 'val': state.test},
-      {'label': 'CODE', 'key': 'code', 'val': state.code.isNotEmpty ? 1 : 0}
+      {'label': 'CODE', 'key': 'code', 'val': decodedCode.isNotEmpty ? 1 : 0}
     ];
 
     final baseColor = isDark
@@ -64,9 +89,7 @@ class Visualizer extends StatelessWidget {
                   final btn = sideButtons[index];
                   final String label = btn['label'] as String;
                   final String key = btn['key'] as String;
-                  final bool isActive = (btn['val'] is int)
-                      ? (btn['val'] as int) > 0
-                      : (btn['val'] as String).isNotEmpty;
+                  final bool isActive = (btn['val'] as int) > 0;
 
                   return Expanded(
                     child: Padding(
@@ -150,7 +173,7 @@ class Visualizer extends StatelessWidget {
                 ),
               ),
             ),
-            _buildAccessCodeDisplay(state.code, isDark),
+            _buildAccessCodeDisplay(decodedCode, isDark),
           ],
         ),
       );

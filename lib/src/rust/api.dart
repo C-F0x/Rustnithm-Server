@@ -6,29 +6,30 @@
 import 'frb_generated.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'protocol.dart';
 
 Stream<SensorData> createSensorStream() =>
     RustLib.instance.api.crateApiCreateSensorStream();
 
-Future<String> startServer({required int port, required bool isUdp}) =>
-    RustLib.instance.api.crateApiStartServer(port: port, isUdp: isUdp);
+Future<void> initLastIp({required String ip}) =>
+    RustLib.instance.api.crateApiInitLastIp(ip: ip);
 
-Future<bool> stopServer() => RustLib.instance.api.crateApiStopServer();
+Future<bool> toggleServer({required int port, required bool isUdp}) =>
+    RustLib.instance.api.crateApiToggleServer(port: port, isUdp: isUdp);
+
+Future<void> handleHandshake({required HandshakePayload incoming}) =>
+    RustLib.instance.api.crateApiHandleHandshake(incoming: incoming);
+
+Future<bool> toggleSync() => RustLib.instance.api.crateApiToggleSync();
 
 Future<void> syncToShmem(
         {required List<int> air,
         required List<int> slider,
         required int coin,
         required int service,
-        required int test,
-        required String code}) =>
+        required int test}) =>
     RustLib.instance.api.crateApiSyncToShmem(
-        air: air,
-        slider: slider,
-        coin: coin,
-        service: service,
-        test: test,
-        code: code);
+        air: air, slider: slider, coin: coin, service: service, test: test);
 
 Future<void> reportToFlutter(
         {required List<int> air,
@@ -36,7 +37,7 @@ Future<void> reportToFlutter(
         required int coin,
         required int service,
         required int test,
-        required U8Array20 code}) =>
+        required U8Array10 code}) =>
     RustLib.instance.api.crateApiReportToFlutter(
         air: air,
         slider: slider,
@@ -51,7 +52,7 @@ class SensorData {
   final int coin;
   final int service;
   final int test;
-  final U8Array20 code;
+  final U8Array10 code;
 
   const SensorData({
     required this.air,
@@ -84,16 +85,16 @@ class SensorData {
           code == other.code;
 }
 
-class U8Array20 extends NonGrowableListView<int> {
-  static const arraySize = 20;
+class U8Array10 extends NonGrowableListView<int> {
+  static const arraySize = 10;
 
   @internal
   Uint8List get inner => _inner;
   final Uint8List _inner;
 
-  U8Array20(this._inner)
+  U8Array10(this._inner)
       : assert(_inner.length == arraySize),
         super(_inner);
 
-  U8Array20.init() : this(Uint8List(arraySize));
+  U8Array10.init() : this(Uint8List(arraySize));
 }
