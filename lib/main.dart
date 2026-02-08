@@ -34,7 +34,6 @@ class ThemeController extends ChangeNotifier {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 初始化 Rust 库
   await RustLib.init();
 
   if (Platform.isWindows) {
@@ -65,7 +64,6 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        // 2. 将 ServerController 替换为 ServerState
         ChangeNotifierProvider(create: (_) => ServerState()),
         ChangeNotifierProvider(create: (_) => ThemeController()),
       ],
