@@ -79,6 +79,10 @@ impl SensorServer {
                         }
 
                         if amt > 0 {
+                            if let Ok(mut addr_guard) = last_client_addr.lock() {
+                                *addr_guard = Some(src);
+                            }
+
                             let header_byte = buf[0];
                             if let Some(header) = ProtocolParser::parse_header(header_byte) {
                                 let payload = &buf[1..amt];

@@ -43,6 +43,7 @@ pub fn toggle_server(port: u16, _is_udp: bool) -> bool {
                 lock.set_active(false);
                 true
             } else {
+                lock.set_active(true);
                 lock.start(port);
                 true
             }
