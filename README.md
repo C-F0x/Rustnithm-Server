@@ -18,11 +18,13 @@ Rustup:
 Visual Studio Version: 17.14.23
 
 # Bug
-Cant Shutdown the server in the app until any input, just simply restart it
 
-adb reverse doesnt work.
+Toggle_Sync Doesnt work, use toggle_server instead 
 
 # ToDo-list
+
+Support TCP 
+
 Slide LED light delivery
 
 Support smooth air/slide on the server UI,total only click is available.
