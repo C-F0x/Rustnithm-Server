@@ -27,9 +27,6 @@ Support TCP
 
 Slide LED light delivery
 
-Support smooth air/slide on the server UI,total only click is available.
-
-Support dual input, total server cant be clicked when io connected.
 
 ## Related
 [Client](https://github.com/C-F0x/Rustnithm-CLIENT)
