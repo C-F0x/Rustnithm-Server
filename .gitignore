@@ -30,3 +30,4 @@ lib/src/rust/frb_generated.web.dart
 rustnithm_native.dll
 *.log
 *.lock
+/test

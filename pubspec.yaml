@@ -1,5 +1,5 @@
 name: rustnithm_server
-description: A Rust-powered server for Brokenithm with Flutter 3.38.5 UI.
+description: A Rust-powered server for Rustnithm
 publish_to: 'none'
 
 version: 1.0.0+1

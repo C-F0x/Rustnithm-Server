@@ -231,19 +231,4 @@ class ServerState extends ChangeNotifier {
     });
     return true;
   }
-
-  void updateButton(String type, int index, bool isActive) {
-    if (type == 'air') {
-      airData[index] = isActive ? 1 : 0;
-    } else if (type == 'slider') {
-      sliderData[index] = isActive ? 1 : 0;
-    } else if (type == 'coin') {
-      coin = isActive ? 1 : 0;
-    } else if (type == 'service') {
-      service = isActive ? 1 : 0;
-    } else if (type == 'test') {
-      test = isActive ? 1 : 0;
-    }
-    notifyListeners();
-  }
 }

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
@@ -22,12 +23,27 @@ class ThemeController extends ChangeNotifier {
     } else {
       _themeMode = ThemeMode.system;
     }
+    _updateWindowEffect();
     notifyListeners();
   }
 
   void setThemeMode(int index) {
     _themeMode = ThemeMode.values[index];
+    _updateWindowEffect();
     notifyListeners();
+  }
+
+  void _updateWindowEffect() {
+    if (!Platform.isWindows) return;
+
+    final brightness = PlatformDispatcher.instance.platformBrightness;
+    bool isDark = _themeMode == ThemeMode.dark ||
+        (_themeMode == ThemeMode.system && brightness == Brightness.dark);
+
+    Window.setEffect(
+      effect: WindowEffect.tabbed,
+      dark: isDark,
+    );
   }
 }
 
@@ -52,9 +68,10 @@ void main() async {
     );
 
     windowManager.waitUntilReadyToShow(windowOptions, () async {
+      final brightness = PlatformDispatcher.instance.platformBrightness;
       await Window.setEffect(
         effect: WindowEffect.tabbed,
-        dark: true,
+        dark: brightness == Brightness.dark,
       );
       await windowManager.show();
       await windowManager.focus();
@@ -78,17 +95,6 @@ class RustnithmApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themeMode = context.watch<ThemeController>().themeMode;
-
-    if (Platform.isWindows) {
-      bool isDark = themeMode == ThemeMode.dark ||
-          (themeMode == ThemeMode.system &&
-              MediaQuery.platformBrightnessOf(context) == Brightness.dark);
-
-      Window.setEffect(
-        effect: WindowEffect.tabbed,
-        dark: isDark,
-      );
-    }
 
     return MaterialApp(
       title: 'Rustnithm Server',
@@ -146,7 +152,7 @@ class MainScreen extends StatelessWidget {
               child: Divider(
                 height: 1,
                 thickness: 1,
-                color: Colors.white.withValues(alpha:0.05),
+                color: Colors.white.withValues(alpha: 0.05),
               ),
             ),
             const Expanded(

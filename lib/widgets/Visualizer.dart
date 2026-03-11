@@ -59,15 +59,16 @@ class Visualizer extends StatelessWidget {
     }
     return String.fromCharCodes(chars);
   }
+
   Widget _buildAirSection(
       BuildContext context, ServerState state, bool isDark) {
     final String decodedCode = _decodeBcd(state.code);
 
     final sideButtons = [
-      {'label': 'COIN', 'key': 'coin', 'val': state.coin},
-      {'label': 'SERV', 'key': 'service', 'val': state.service},
-      {'label': 'TEST', 'key': 'test', 'val': state.test},
-      {'label': 'CODE', 'key': 'code', 'val': decodedCode.isNotEmpty ? 1 : 0}
+      {'label': 'COIN', 'val': state.coin},
+      {'label': 'SERV', 'val': state.service},
+      {'label': 'TEST', 'val': state.test},
+      {'label': 'CODE', 'val': decodedCode.isNotEmpty ? 1 : 0}
     ];
 
     final baseColor = isDark
@@ -88,35 +89,30 @@ class Visualizer extends StatelessWidget {
                 children: List.generate(sideButtons.length, (index) {
                   final btn = sideButtons[index];
                   final String label = btn['label'] as String;
-                  final String key = btn['key'] as String;
                   final bool isActive = (btn['val'] as int) > 0;
 
                   return Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4.0),
-                      child: Listener(
-                        onPointerDown: (_) => state.updateButton(key, 0, true),
-                        onPointerUp: (_) => state.updateButton(key, 0, false),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 50),
-                          decoration: BoxDecoration(
-                            color: isActive ? Colors.amberAccent : baseColor,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: isActive
-                                  ? (isDark ? Colors.white : Colors.black38)
-                                  : borderColor,
-                              width: 0.5,
-                            ),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 50),
+                        decoration: BoxDecoration(
+                          color: isActive ? Colors.amberAccent : baseColor,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: isActive
+                                ? (isDark ? Colors.white : Colors.black38)
+                                : borderColor,
+                            width: 0.5,
                           ),
-                          child: Center(
-                            child: Text(
-                              label,
-                              style: TextStyle(
-                                color: isActive ? Colors.black : (isDark ? Colors.white38 : Colors.black45),
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              color: isActive ? Colors.black : (isDark ? Colors.white38 : Colors.black45),
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
@@ -137,31 +133,27 @@ class Visualizer extends StatelessWidget {
                     bool isActive = state.airData[logicIndex] > 0;
 
                     return Expanded(
-                      child: Listener(
-                        onPointerDown: (_) => state.updateButton('air', logicIndex, true),
-                        onPointerUp: (_) => state.updateButton('air', logicIndex, false),
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 2),
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: isActive ? (isDark ? Colors.cyanAccent : Colors.cyan.shade400) : baseColor,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(
-                              color: isActive ? (isDark ? Colors.white : Colors.black26) : borderColor,
-                              width: 0.5,
-                            ),
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(vertical: 2),
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: isActive ? (isDark ? Colors.cyanAccent : Colors.cyan.shade400) : baseColor,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: isActive ? (isDark ? Colors.white : Colors.black26) : borderColor,
+                            width: 0.5,
                           ),
-                          child: Center(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 2),
-                              child: FittedBox(
-                                fit: BoxFit.contain,
-                                child: Text(
-                                  "AIR $logicNum",
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: isActive ? Colors.black : inactiveText,
-                                  ),
+                        ),
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: FittedBox(
+                              fit: BoxFit.contain,
+                              child: Text(
+                                "AIR $logicNum",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: isActive ? Colors.black : inactiveText,
                                 ),
                               ),
                             ),
@@ -246,34 +238,28 @@ class Visualizer extends StatelessWidget {
               bool isActive = sliderData[dataIndex] > 0;
 
               return Expanded(
-                child: Listener(
-                  onPointerDown: (_) =>
-                      state.updateButton('slider', dataIndex, true),
-                  onPointerUp: (_) =>
-                      state.updateButton('slider', dataIndex, false),
-                  child: Container(
-                    margin: const EdgeInsets.all(1.5),
-                    decoration: BoxDecoration(
-                      color: isActive ? Colors.amberAccent : baseColor,
-                      borderRadius: BorderRadius.circular(2),
-                      border: Border.all(
-                        color: isActive
-                            ? (isDark ? Colors.white : Colors.black26)
-                            : borderColor,
-                        width: 0.5,
-                      ),
+                child: Container(
+                  margin: const EdgeInsets.all(1.5),
+                  decoration: BoxDecoration(
+                    color: isActive ? Colors.amberAccent : baseColor,
+                    borderRadius: BorderRadius.circular(2),
+                    border: Border.all(
+                      color: isActive
+                          ? (isDark ? Colors.white : Colors.black26)
+                          : borderColor,
+                      width: 0.5,
                     ),
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(2.0),
-                        child: FittedBox(
-                          fit: BoxFit.contain,
-                          child: Text(
-                            "$logicIndex",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: isActive ? Colors.black : inactiveText,
-                            ),
+                  ),
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(2.0),
+                      child: FittedBox(
+                        fit: BoxFit.contain,
+                        child: Text(
+                          "$logicIndex",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: isActive ? Colors.black : inactiveText,
                           ),
                         ),
                       ),

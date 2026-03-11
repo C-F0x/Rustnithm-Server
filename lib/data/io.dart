@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -80,19 +79,5 @@ class ServerIO {
   void stopListening() {
     _sensorSub?.cancel();
     _sensorSub = null;
-  }
-
-  void sync(List<int> air, List<int> slider, int coin, int service, int test) {
-    try {
-      rust_api.syncToShmem(
-        air: Uint8List.fromList(air),
-        slider: Uint8List.fromList(slider),
-        coin: coin,
-        service: service,
-        test: test,
-      );
-    } catch (e) {
-      debugPrint("IO Sync Error: $e");
-    }
   }
 }

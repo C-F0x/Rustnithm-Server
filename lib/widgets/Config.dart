@@ -98,36 +98,37 @@ class _HeaderConfigState extends State<HeaderConfig> {
   void _showConnectionTips(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF1E1E1E)
-            : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Row(
-          children: [
-            Icon(Icons.tips_and_updates_rounded, color: Colors.amberAccent),
-            SizedBox(width: 10),
-            Text("Connection Tips", style: TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("1. Connect Manual on both sides while first using"),
-            SizedBox(height: 12),
-            Text("2. Connect Manual on both sides when IP changed"),
-            SizedBox(height: 12),
-            Text("3. Nop."),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("GOT IT", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+      builder: (context) {
+        final bool isDark = Theme.of(context).brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: Row(
+            children: [
+              const Icon(Icons.tips_and_updates_rounded, color: Colors.amberAccent),
+              const SizedBox(width: 10),
+              Text("Connection Tips", style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+            ],
           ),
-        ],
-      ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("1. Connect Manual on both sides while first using", style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+              const SizedBox(height: 12),
+              Text("2. Connect Manual on both sides when IP changed", style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+              const SizedBox(height: 12),
+              Text("3. Nop.", style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("GOT IT", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -135,7 +136,11 @@ class _HeaderConfigState extends State<HeaderConfig> {
   Widget build(BuildContext context) {
     final state = context.watch<ServerState>();
     final themeController = context.watch<ThemeController>();
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final Brightness platformBrightness = View.of(context).platformDispatcher.platformBrightness;
+    final bool isDark = themeController.themeMode == ThemeMode.system
+        ? platformBrightness == Brightness.dark
+        : themeController.themeMode == ThemeMode.dark;
 
     if (state.showTipsSignal) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -145,7 +150,6 @@ class _HeaderConfigState extends State<HeaderConfig> {
     }
 
     final Color textColor = isDark ? Colors.white : Colors.black87;
-    final Color secondaryTextColor = isDark ? Colors.white24 : Colors.black38;
     final Color containerBg = isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.05);
     final Color itemBg = isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03);
     final Color borderColor = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.12);
@@ -163,164 +167,13 @@ class _HeaderConfigState extends State<HeaderConfig> {
           _buildThemeToggle(themeController, isDark),
           const SizedBox(width: 8),
           _buildDivider(isDark),
-          _buildConfigItem(
-            child: GestureDetector(
-              onTap: () => _handleTap(state),
-              onLongPress: () => _handleLongPress(state),
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  width: 30,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _getIndicatorColor(state),
-                    boxShadow: [
-                      BoxShadow(
-                        color: _getIndicatorColor(state).withValues(alpha: 0.6),
-                        blurRadius: 12,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                    border: Border.all(
-                      color: isDark ? Colors.white24 : Colors.black12,
-                      width: 2.5,
-                    ),
-                  ),
-                  child: Center(
-                    child: (_isManualWaiting || state.isTransitioning)
-                        ? const SizedBox(
-                      width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                        : Icon(
-                      state.isRunning ? Icons.link : Icons.power_settings_new,
-                      size: 16,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
+          _buildIndicator(state, isDark),
           _buildDivider(isDark),
-          _buildConfigItem(
-            child: Material(
-              color: Colors.blueAccent,
-              borderRadius: BorderRadius.circular(6),
-              child: InkWell(
-                onTap: state.isRunning
-                    ? null
-                    : () {
-                  state.setProtocol(
-                    state.protocol == ServerProtocol.udp
-                        ? ServerProtocol.tcp
-                        : ServerProtocol.udp,
-                  );
-                },
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  height: 32,
-                  width: 60,
-                  alignment: Alignment.center,
-                  child: Text(
-                    state.protocol == ServerProtocol.udp ? 'UDP' : 'TCP',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
+          _buildProtocolToggle(state),
           _buildDivider(isDark),
-          Expanded(
-            flex: 3,
-            child: _buildConfigItem(
-              child: Container(
-                height: 32,
-                decoration: BoxDecoration(
-                  color: itemBg,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: borderColor),
-                ),
-                child: InkWell(
-                  onTap: () => state.switchIp(),
-                  borderRadius: BorderRadius.circular(6),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.lan, size: 14, color: Colors.blueAccent),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            state.hostIp,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontFamily: 'monospace',
-                              color: isDark ? Colors.greenAccent : Colors.green.shade700,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
+          _buildIpSelector(state, isDark, itemBg, borderColor),
           const SizedBox(width: 16),
-          Expanded(
-            flex: 2,
-            child: _buildConfigItem(
-              child: SizedBox(
-                height: 32,
-                child: TextField(
-                  controller: _portController,
-                  focusNode: _portFocusNode,
-                  readOnly: state.isRunning,
-                  enabled: !state.isRunning,
-                  keyboardType: TextInputType.number,
-                  style: TextStyle(
-                      fontSize: 13,
-                      color: state.isRunning ? textColor.withValues(alpha: 0.8) : textColor
-                  ),
-                  decoration: InputDecoration(
-                    hintText: "Port",
-                    filled: true,
-                    fillColor: itemBg,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-                    disabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(6),
-                      borderSide: BorderSide(color: borderColor),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(6),
-                      borderSide: BorderSide(
-                        color: _isPortError ? Colors.redAccent : borderColor,
-                        width: _isPortError ? 1.5 : 1.0,
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(6),
-                      borderSide: BorderSide(
-                        color: _isPortError ? Colors.redAccent : Colors.blueAccent,
-                        width: 1.5,
-                      ),
-                    ),
-                  ),
-                  onChanged: (val) {
-                    if (_isPortError) setState(() => _isPortError = false);
-                  },
-                ),
-              ),
-            ),
-          ),
+          _buildPortField(state, textColor, itemBg, borderColor),
         ],
       ),
     );
@@ -354,7 +207,164 @@ class _HeaderConfigState extends State<HeaderConfig> {
     );
   }
 
-  Widget _buildConfigItem({required Widget child}) => child;
+  Widget _buildIndicator(ServerState state, bool isDark) {
+    return GestureDetector(
+      onTap: () => _handleTap(state),
+      onLongPress: () => _handleLongPress(state),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: _getIndicatorColor(state),
+            boxShadow: [
+              BoxShadow(
+                color: _getIndicatorColor(state).withValues(alpha: 0.6),
+                blurRadius: 12,
+                spreadRadius: 2,
+              ),
+            ],
+            border: Border.all(
+              color: isDark ? Colors.white24 : Colors.black12,
+              width: 2.5,
+            ),
+          ),
+          child: Center(
+            child: (_isManualWaiting || state.isTransitioning)
+                ? const SizedBox(
+              width: 16, height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            )
+                : Icon(
+              state.isRunning ? Icons.link : Icons.power_settings_new,
+              size: 16,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProtocolToggle(ServerState state) {
+    return Material(
+      color: Colors.blueAccent,
+      borderRadius: BorderRadius.circular(6),
+      child: InkWell(
+        onTap: state.isRunning
+            ? null
+            : () {
+          state.setProtocol(
+            state.protocol == ServerProtocol.udp
+                ? ServerProtocol.tcp
+                : ServerProtocol.udp,
+          );
+        },
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          height: 32,
+          width: 60,
+          alignment: Alignment.center,
+          child: Text(
+            state.protocol == ServerProtocol.udp ? 'UDP' : 'TCP',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIpSelector(ServerState state, bool isDark, Color itemBg, Color borderColor) {
+    return Expanded(
+      flex: 3,
+      child: Container(
+        height: 32,
+        decoration: BoxDecoration(
+          color: itemBg,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: borderColor),
+        ),
+        child: InkWell(
+          onTap: () => state.switchIp(),
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(
+              children: [
+                const Icon(Icons.lan, size: 14, color: Colors.blueAccent),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    state.hostIp,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontFamily: 'monospace',
+                      color: isDark ? Colors.greenAccent : Colors.green.shade700,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPortField(ServerState state, Color textColor, Color itemBg, Color borderColor) {
+    return Expanded(
+      flex: 2,
+      child: SizedBox(
+        height: 32,
+        child: TextField(
+          controller: _portController,
+          focusNode: _portFocusNode,
+          readOnly: state.isRunning,
+          enabled: !state.isRunning,
+          keyboardType: TextInputType.number,
+          style: TextStyle(
+              fontSize: 13,
+              color: state.isRunning ? textColor.withValues(alpha: 0.8) : textColor
+          ),
+          decoration: InputDecoration(
+            hintText: "Port",
+            filled: true,
+            fillColor: itemBg,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(color: borderColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(
+                color: _isPortError ? Colors.redAccent : borderColor,
+                width: _isPortError ? 1.5 : 1.0,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(6),
+              borderSide: BorderSide(
+                color: _isPortError ? Colors.redAccent : Colors.blueAccent,
+                width: 1.5,
+              ),
+            ),
+          ),
+          onChanged: (val) {
+            if (_isPortError) setState(() => _isPortError = false);
+          },
+        ),
+      ),
+    );
+  }
 
   Widget _buildDivider(bool isDark) {
     return Padding(

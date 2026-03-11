@@ -2,7 +2,7 @@ use std::net::{UdpSocket, SocketAddr};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use crate::protocol::{ProtocolParser, PacketType};
 use crate::shmem::GLOBAL_SHMEM;
 use crate::api::report_to_flutter;
@@ -71,13 +71,13 @@ impl SensorServer {
 
             let mut buf = [0u8; 1024];
 
+            let mut last_button_time: Option<Instant> = None;
+            let mut last_card_time: Option<Instant> = None;
+            let ttl_duration = Duration::from_millis(100);
+
             while is_running.load(Ordering::SeqCst) {
                 match socket.recv_from(&mut buf) {
                     Ok((amt, src)) => {
-                        if let Ok(mut addr_guard) = last_client_addr.lock() {
-                            *addr_guard = Some(src);
-                        }
-
                         if amt > 0 {
                             if let Ok(mut addr_guard) = last_client_addr.lock() {
                                 *addr_guard = Some(src);
@@ -100,12 +100,15 @@ impl SensorServer {
                                         let service = (mask & 0x02 != 0) as u8;
                                         let test = (mask & 0x04 != 0) as u8;
 
-                                        if let Ok(lock) = GLOBAL_SHMEM.lock() {
-                                            if let Some(manager) = lock.as_ref() {
-                                                manager.write_status(coin, service, test);
+                                        if coin != 0 || service != 0 || test != 0 {
+                                            if let Ok(lock) = GLOBAL_SHMEM.lock() {
+                                                if let Some(manager) = lock.as_ref() {
+                                                    manager.write_status(coin, service, test);
+                                                }
                                             }
+                                            report_to_flutter(vec![0; 6], vec![0; 32], coin, service, test, [0u8; 10]);
+                                            last_button_time = Some(Instant::now());
                                         }
-                                        report_to_flutter(vec![0; 6], vec![0; 32], coin, service, test, [0u8; 10]);
                                     } else if header.packet_type == PacketType::Control {
                                         if let Some(ctrl) = ProtocolParser::parse_control(payload) {
                                             if let Ok(lock) = GLOBAL_SHMEM.lock() {
@@ -126,6 +129,7 @@ impl SensorServer {
                                             if let Some(code) = ProtocolParser::parse_card(raw_bcd) {
                                                 report_to_flutter(vec![0; 6], vec![0; 32], 0, 0, 0, code);
                                             }
+                                            last_card_time = Some(Instant::now());
                                         }
                                     }
                                 }
@@ -133,6 +137,30 @@ impl SensorServer {
                         }
                     }
                     Err(_) => {}
+                }
+
+                if let Some(time) = last_button_time {
+                    if time.elapsed() >= ttl_duration {
+                        if let Ok(lock) = GLOBAL_SHMEM.lock() {
+                            if let Some(manager) = lock.as_ref() {
+                                manager.write_status(0, 0, 0);
+                            }
+                        }
+                        report_to_flutter(vec![0; 6], vec![0; 32], 0, 0, 0, [0u8; 10]);
+                        last_button_time = None;
+                    }
+                }
+
+                if let Some(time) = last_card_time {
+                    if time.elapsed() >= ttl_duration {
+                        if let Ok(lock) = GLOBAL_SHMEM.lock() {
+                            if let Some(manager) = lock.as_ref() {
+                                manager.write_card_raw(&[]);
+                            }
+                        }
+                        report_to_flutter(vec![0; 6], vec![0; 32], 0, 0, 0, [0u8; 10]);
+                        last_card_time = None;
+                    }
                 }
             }
             if let Ok(mut guard) = shared_socket.lock() {
