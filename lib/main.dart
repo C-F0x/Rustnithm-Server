@@ -133,10 +133,10 @@ class MainScreen extends StatelessWidget {
               padding: EdgeInsets.fromLTRB(32, 8, 32, 16),
               child: IntrinsicHeight(
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     SizedBox(
-                      width: 208,
+                      width: 258,
                       child: HeaderBrand(),
                     ),
                     SizedBox(width: 48),
