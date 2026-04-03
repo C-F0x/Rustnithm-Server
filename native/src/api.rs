@@ -34,7 +34,7 @@ pub fn init_last_ip(ip: String) {
     }
 }
 
-pub fn toggle_server(port: u16, _is_udp: bool) -> bool {
+pub fn toggle_server(port: u16, is_udp: bool) -> bool {
     let _ = crate::shmem::init_shmem();
     match SERVER_INSTANCE.lock() {
         Ok(lock) => {
@@ -44,13 +44,14 @@ pub fn toggle_server(port: u16, _is_udp: bool) -> bool {
                 true
             } else {
                 lock.set_active(true);
-                lock.start(port);
+                lock.start(port, !is_udp);
                 true
             }
         }
         Err(_) => false,
     }
 }
+
 pub fn handle_handshake(incoming: HandshakePayload) {
     if let Ok(server) = SERVER_INSTANCE.lock() {
         if !server.is_running_status() { return; }

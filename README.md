@@ -23,7 +23,6 @@ Toggle_Sync Doesnt work, use toggle_server instead
 
 # ToDo-list
 
-Support TCP 
 
 Slide LED light delivery
 

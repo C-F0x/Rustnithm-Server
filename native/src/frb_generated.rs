@@ -268,12 +268,12 @@ fn wire__crate__api__toggle_server_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_port = <u16>::sse_decode(&mut deserializer);
-            let api__is_udp = <bool>::sse_decode(&mut deserializer);
+            let api_is_udp = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, ()>((move || {
                     let output_ok =
-                        Result::<_, ()>::Ok(crate::api::toggle_server(api_port, api__is_udp))?;
+                        Result::<_, ()>::Ok(crate::api::toggle_server(api_port, api_is_udp))?;
                     Ok(output_ok)
                 })())
             }
