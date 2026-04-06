@@ -115,7 +115,7 @@ class _AboutDialog extends StatelessWidget {
     final textColor = isDark ? Colors.white : Colors.black87;
     final subColor = isDark ? Colors.white70 : Colors.black54;
     final borderColor = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.1);
-    final overlayColor = isDark ? Colors.white.withValues(alpha: 2.05) : Colors.white.withValues(alpha: 0.4);
+    final overlayColor = isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.4);
 
     return Center(
       child: Material(

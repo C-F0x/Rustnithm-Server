@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:rustnithm_server/data/state.dart';
 import 'package:rustnithm_server/main.dart';
@@ -14,6 +15,7 @@ class HeaderConfig extends StatefulWidget {
 class _HeaderConfigState extends State<HeaderConfig> {
   final TextEditingController _portController = TextEditingController();
   final FocusNode _portFocusNode = FocusNode();
+  final FocusNode _indicatorFocusNode = FocusNode();
   bool _isPortError = false;
   bool _isManualWaiting = false;
   Timer? _rollbackTimer;
@@ -53,15 +55,20 @@ class _HeaderConfigState extends State<HeaderConfig> {
   @override
   void dispose() {
     _portFocusNode.dispose();
+    _indicatorFocusNode.dispose();
     _portController.dispose();
     _rollbackTimer?.cancel();
     super.dispose();
   }
 
-  Color _getIndicatorColor(ServerState state) {
-    if (_isManualWaiting || state.isTransitioning) return Colors.amberAccent;
-    if (state.isRunning) return Colors.greenAccent;
-    return Colors.redAccent;
+  Color _getIndicatorColor(ServerState state, bool isDark) {
+    if (_isManualWaiting || state.isTransitioning) {
+      return Colors.amberAccent;
+    }
+    if (state.isRunning) {
+      return isDark ? Colors.greenAccent : Colors.green.shade600;
+    }
+    return isDark ? Colors.redAccent : Colors.red.shade600;
   }
 
   void _handleTap(ServerState state) {
@@ -72,26 +79,18 @@ class _HeaderConfigState extends State<HeaderConfig> {
   void _handleLongPress(ServerState state) async {
     if (state.isTransitioning || !state.isRunning) return;
 
-    setState(() {
-      _isManualWaiting = true;
-    });
+    setState(() => _isManualWaiting = true);
 
     final bool sent = await state.toggleSync();
 
     if (!sent) {
-      setState(() {
-        _isManualWaiting = false;
-      });
+      setState(() => _isManualWaiting = false);
       return;
     }
 
     _rollbackTimer?.cancel();
     _rollbackTimer = Timer(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        setState(() {
-          _isManualWaiting = false;
-        });
-      }
+      if (mounted) setState(() => _isManualWaiting = false);
     });
   }
 
@@ -107,24 +106,42 @@ class _HeaderConfigState extends State<HeaderConfig> {
             children: [
               const Icon(Icons.tips_and_updates_rounded, color: Colors.amberAccent),
               const SizedBox(width: 10),
-              Text("Connection Tips", style: TextStyle(fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+              Text(
+                "Connection Tips",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
             ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("1. Connect Manual on both sides while first using", style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+              Text(
+                "1. Connect Manual on both sides while first using",
+                style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+              ),
               const SizedBox(height: 12),
-              Text("2. Connect Manual on both sides when IP changed", style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+              Text(
+                "2. Connect Manual on both sides when IP changed",
+                style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+              ),
               const SizedBox(height: 12),
-              Text("3. Nop.", style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
+              Text(
+                "3. Nop.",
+                style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+              ),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text("GOT IT", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+              child: const Text(
+                "GOT IT",
+                style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         );
@@ -150,9 +167,15 @@ class _HeaderConfigState extends State<HeaderConfig> {
     }
 
     final Color textColor = isDark ? Colors.white : Colors.black87;
-    final Color containerBg = isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.05);
-    final Color itemBg = isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03);
-    final Color borderColor = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.12);
+    final Color containerBg = isDark
+        ? Colors.white.withValues(alpha: 0.04)
+        : Colors.black.withValues(alpha: 0.05);
+    final Color itemBg = isDark
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.03);
+    final Color borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.black.withValues(alpha: 0.12);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
@@ -169,11 +192,11 @@ class _HeaderConfigState extends State<HeaderConfig> {
           _buildDivider(isDark),
           _buildIndicator(state, isDark),
           _buildDivider(isDark),
-          _buildProtocolToggle(state),
+          _buildProtocolToggle(state, isDark),
           _buildDivider(isDark),
           _buildIpSelector(state, isDark, itemBg, borderColor),
           const SizedBox(width: 16),
-          _buildPortField(state, textColor, itemBg, borderColor),
+          _buildPortField(state, textColor, itemBg, borderColor, isDark),
         ],
       ),
     );
@@ -208,40 +231,76 @@ class _HeaderConfigState extends State<HeaderConfig> {
   }
 
   Widget _buildIndicator(ServerState state, bool isDark) {
-    return GestureDetector(
-      onTap: () => _handleTap(state),
-      onLongPress: () => _handleLongPress(state),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          width: 30,
-          height: 30,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: _getIndicatorColor(state),
-            boxShadow: [
-              BoxShadow(
-                color: _getIndicatorColor(state).withValues(alpha: 0.6),
-                blurRadius: 12,
-                spreadRadius: 2,
+    final color = _getIndicatorColor(state, isDark);
+
+    IconData icon;
+    if (_isManualWaiting || state.isTransitioning) {
+      icon = Icons.sync_rounded;
+    } else if (state.isRunning) {
+      icon = Icons.link_outlined;
+    } else {
+      icon = Icons.power_settings_new_outlined;
+    }
+
+    return Focus(
+      focusNode: _indicatorFocusNode,
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.space)) {
+          _handleTap(state);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: GestureDetector(
+        onTap: () {
+          _indicatorFocusNode.requestFocus();
+          _handleTap(state);
+        },
+        onLongPress: () => _handleLongPress(state),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.basic,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: () {
+              _indicatorFocusNode.requestFocus();
+              _handleTap(state);
+            },
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.08)
+                      : Colors.black.withValues(alpha: 0.12),
+                ),
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : Colors.black.withValues(alpha: 0.03),
               ),
-            ],
-            border: Border.all(
-              color: isDark ? Colors.white24 : Colors.black12,
-              width: 2.5,
-            ),
-          ),
-          child: Center(
-            child: (_isManualWaiting || state.isTransitioning)
-                ? const SizedBox(
-              width: 16, height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-            )
-                : Icon(
-              state.isRunning ? Icons.link : Icons.power_settings_new,
-              size: 16,
-              color: Colors.white,
+              child: Center(
+                child: (_isManualWaiting || state.isTransitioning)
+                    ? SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: color,
+                  ),
+                )
+                    : AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(
+                    icon,
+                    key: ValueKey(icon),
+                    size: 18,
+                    color: color,
+                  ),
+                ),
+              ),
             ),
           ),
         ),
@@ -249,31 +308,48 @@ class _HeaderConfigState extends State<HeaderConfig> {
     );
   }
 
-  Widget _buildProtocolToggle(ServerState state) {
-    return Material(
-      color: Colors.blueAccent,
-      borderRadius: BorderRadius.circular(6),
+  Widget _buildProtocolToggle(ServerState state, bool isDark) {
+    final isUdp = state.protocol == ServerProtocol.udp;
+    final labelColor = isDark ? Colors.lightBlueAccent : Colors.blueAccent;
+    final disabledColor = isDark
+        ? Colors.white.withValues(alpha: 0.2)
+        : Colors.black.withValues(alpha: 0.2);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.black.withValues(alpha: 0.12);
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.03);
+
+    return Container(
+      height: 32,
+      width: 52,
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: borderColor),
+      ),
       child: InkWell(
         onTap: state.isRunning
             ? null
             : () {
           state.setProtocol(
-            state.protocol == ServerProtocol.udp
-                ? ServerProtocol.tcp
-                : ServerProtocol.udp,
+            isUdp ? ServerProtocol.tcp : ServerProtocol.udp,
           );
         },
         borderRadius: BorderRadius.circular(6),
-        child: Container(
-          height: 32,
-          width: 60,
-          alignment: Alignment.center,
-          child: Text(
-            state.protocol == ServerProtocol.udp ? 'UDP' : 'TCP',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
+        child: Center(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: Text(
+              isUdp ? 'UDP' : 'TCP',
+              key: ValueKey(isUdp),
+              style: TextStyle(
+                color: state.isRunning ? disabledColor : labelColor,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
             ),
           ),
         ),
@@ -298,7 +374,11 @@ class _HeaderConfigState extends State<HeaderConfig> {
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Row(
               children: [
-                const Icon(Icons.lan, size: 14, color: Colors.blueAccent),
+                Icon(
+                  Icons.lan_outlined,
+                  size: 14,
+                  color: isDark ? Colors.lightBlueAccent : Colors.blueAccent,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -319,7 +399,17 @@ class _HeaderConfigState extends State<HeaderConfig> {
     );
   }
 
-  Widget _buildPortField(ServerState state, Color textColor, Color itemBg, Color borderColor) {
+  Widget _buildPortField(
+      ServerState state,
+      Color textColor,
+      Color itemBg,
+      Color borderColor,
+      bool isDark,
+      ) {
+    final portColor = isDark
+        ? const Color(0xFFFFE082)
+        : const Color(0xFF8B6914);
+
     return Expanded(
       flex: 2,
       child: SizedBox(
@@ -331,11 +421,17 @@ class _HeaderConfigState extends State<HeaderConfig> {
           enabled: !state.isRunning,
           keyboardType: TextInputType.number,
           style: TextStyle(
-              fontSize: 13,
-              color: state.isRunning ? textColor.withValues(alpha: 0.8) : textColor
+            fontSize: 13,
+            color: state.isRunning
+                ? portColor.withValues(alpha: 0.5)
+                : portColor,
           ),
           decoration: InputDecoration(
             hintText: "Port",
+            hintStyle: TextStyle(
+              color: portColor.withValues(alpha: 0.4),
+              fontSize: 13,
+            ),
             filled: true,
             fillColor: itemBg,
             contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
@@ -373,7 +469,9 @@ class _HeaderConfigState extends State<HeaderConfig> {
         height: 24,
         child: VerticalDivider(
           width: 1,
-          color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.1),
+          color: isDark
+              ? Colors.white10
+              : Colors.black.withValues(alpha: 0.1),
         ),
       ),
     );

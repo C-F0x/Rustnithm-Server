@@ -15,7 +15,7 @@ dependencies:
   provider: ^6.1.1
   url_launcher: ^6.2.0
   flutter_rust_bridge: 2.11.1
-  network_info_plus: ^5.0.1
+  network_info_plus: ^7.0.0
   window_manager: ^0.5.1
   ffi: ^2.1.4
   flutter_acrylic: ^1.1.0
@@ -27,8 +27,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
-  ffigen: 9.0.1
+  flutter_lints: ^6.0.0
+  ffigen: ^20.1.1
   flutter_launcher_icons: "^0.14.4"
 
 flutter_launcher_icons:
