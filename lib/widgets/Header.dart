@@ -38,6 +38,7 @@ class _HeaderBrandState extends State<HeaderBrand> {
 
     final imagePos = renderBox.localToGlobal(Offset.zero);
     final imageSize = renderBox.size;
+    final imageWidth = imageSize.width;
     final imageCenter = Offset(
       imagePos.dx + imageSize.width / 2,
       imagePos.dy + imageSize.height / 2,
@@ -45,16 +46,19 @@ class _HeaderBrandState extends State<HeaderBrand> {
 
     final screenSize = MediaQuery.of(context).size;
     final screenCenter = Offset(screenSize.width / 2, screenSize.height / 2);
+    final targetWidth = screenSize.width * 0.42;
 
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
       barrierLabel: '',
       barrierColor: Colors.transparent,
-      transitionDuration: const Duration(milliseconds: 280),
+      transitionDuration: const Duration(milliseconds: 320),
       pageBuilder: (context, _, __) => _AboutDialog(
         isDark: isDark,
         onLaunchUrl: _launchUrl,
+        imageWidth: imageWidth,
+        targetWidth: targetWidth,
       ),
       transitionBuilder: (context, animation, _, child) {
         final curved = CurvedAnimation(
@@ -62,15 +66,20 @@ class _HeaderBrandState extends State<HeaderBrand> {
           curve: Curves.easeOutCubic,
         );
         final t = curved.value;
+
         final dx = (imageCenter.dx - screenCenter.dx) * (1 - t);
         final dy = (imageCenter.dy - screenCenter.dy) * (1 - t);
+
+        final scaleX = (imageWidth + (targetWidth - imageWidth) * t) / targetWidth;
+        final scaleY = 0.3 + 0.7 * t;
 
         return Opacity(
           opacity: t,
           child: Transform.translate(
             offset: Offset(dx, dy),
-            child: Transform.scale(
-              scale: 0.4 + 0.6 * t,
+            child: Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.diagonal3Values(scaleX, scaleY, 1.0),
               child: child,
             ),
           ),
@@ -107,38 +116,38 @@ class _HeaderBrandState extends State<HeaderBrand> {
 class _AboutDialog extends StatelessWidget {
   final bool isDark;
   final VoidCallback onLaunchUrl;
+  final double imageWidth;
+  final double targetWidth;
 
-  const _AboutDialog({required this.isDark, required this.onLaunchUrl});
+  const _AboutDialog({
+    required this.isDark,
+    required this.onLaunchUrl,
+    required this.imageWidth,
+    required this.targetWidth,
+  });
 
   @override
   Widget build(BuildContext context) {
     final textColor = isDark ? Colors.white : Colors.black87;
     final subColor = isDark ? Colors.white70 : Colors.black54;
-    final borderColor = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.1);
-    final overlayColor = isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.4);
+    final tintColor = isDark
+        ? Colors.black.withValues(alpha: 0.72)
+        : Colors.white.withValues(alpha: 0.78);
 
     return Center(
       child: Material(
         color: Colors.transparent,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 32),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: borderColor),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.1),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
+        child: SizedBox(
+          width: targetWidth,
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+              filter: ImageFilter.blur(sigmaX: 60, sigmaY: 60),
               child: Container(
-                color: overlayColor,
+                decoration: BoxDecoration(
+                  color: tintColor,
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -152,20 +161,23 @@ class _AboutDialog extends StatelessWidget {
                         fontSize: 24,
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     Text(
                       'A mixture of dart and rust',
                       style: TextStyle(color: subColor, fontSize: 14),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 16),
                     GestureDetector(
                       onTap: onLaunchUrl,
-                      child: const Text(
-                        'https://github.com/C-F0x/Rustnithm-Server',
+                      child: Text(
+                        'GitHub@C-F0x/Rustnithm-Server',
                         style: TextStyle(
-                          color: Colors.blueAccent,
+                          color: isDark ? Colors.lightBlueAccent : Colors.blueAccent,
                           fontSize: 13,
                           decoration: TextDecoration.underline,
+                          decorationColor: isDark
+                              ? Colors.lightBlueAccent
+                              : Colors.blueAccent,
                         ),
                       ),
                     ),
