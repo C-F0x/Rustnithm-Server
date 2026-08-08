@@ -7,11 +7,17 @@
 ![active](./MISC/demon_active.png)
 
 # Tutorial
-#### 1. Select Protocol: Choose between [UDP](https://www.csgraduates.com/computer_network/transport/udp/) (Recommended for low latency) or [TCP](https://www.csgraduates.com/computer_network/transport/tcp/).
+#### 1. Select Protocol: Choose between [UDP](https://www.csgraduates.com/computer_network/transport/udp/) or [TCP](https://www.csgraduates.com/computer_network/transport/tcp/).
 #### 2. Assign Port: Input any available port (e.g., 114514). input another one if not work.
 #### 3. Choose IP Address: Check your PC's IP. If you have multiple network adapters (Wi-Fi/Ethernet), click the address box to cycle through them (e.g., 192.168.x.x). Note: Currently supports IPv4 only.
 #### 4. Go Live: Click the Activate button to start the server.
    
+## For Advanced User
+u can use adb reverse for lower latency
+
+``` Android Debug Bridge
+adb reverse tcp:<remote_port> tcp:<local_port>
+ ```
 
 # Bug
 
