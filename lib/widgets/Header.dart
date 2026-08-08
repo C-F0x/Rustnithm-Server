@@ -54,7 +54,7 @@ class _HeaderBrandState extends State<HeaderBrand> {
       barrierLabel: '',
       barrierColor: Colors.transparent,
       transitionDuration: const Duration(milliseconds: 320),
-      pageBuilder: (context, _, __) => _AboutDialog(
+      pageBuilder: (context, _, _) => _AboutDialog(
         isDark: isDark,
         onLaunchUrl: _launchUrl,
         imageWidth: imageWidth,

@@ -3,8 +3,8 @@
 
 
 # Preview
-![suspend](/MISC/demo_suspend.png)
-![active](/MISC/demon_active.png)
+![suspend](./MISC/demo_suspend.png)
+![active](./MISC/demon_active.png)
 
 # Tutorial
 #### 1. Select Protocol: Choose between [UDP](https://www.csgraduates.com/computer_network/transport/udp/) (Recommended for low latency) or [TCP](https://www.csgraduates.com/computer_network/transport/tcp/).
@@ -17,7 +17,6 @@
 
 Toggle_Sync Doesnt work, use toggle_server instead 
 
-abnormal lag on TCP mode, under construction...
 
 # ToDo-list
 
