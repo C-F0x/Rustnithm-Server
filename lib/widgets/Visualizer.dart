@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:rustnithm_server/data/state.dart';
+import 'package:rustnithm_server/widgets/led_color.dart';
 import 'dart:typed_data';
 
 class Visualizer extends StatelessWidget {
@@ -31,7 +32,12 @@ class Visualizer extends StatelessWidget {
 
     List<Color?> towerColors(List<int> bytes) => List.generate(3, (index) {
       final offset = index * 3;
-      return _gameColor(bytes[offset], bytes[offset + 1], bytes[offset + 2]);
+      return gameLedColor(
+        bytes[offset],
+        bytes[offset + 1],
+        bytes[offset + 2],
+        gamma: state.gameLedGamma,
+      );
     });
 
     return LedVisualColors(

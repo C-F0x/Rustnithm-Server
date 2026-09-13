@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:rustnithm_server/main.dart';
 import 'package:rustnithm_server/data/state.dart';
+import 'package:rustnithm_server/widgets/led_color.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class HeaderBrand extends StatefulWidget {
@@ -189,6 +190,12 @@ class _AboutDialog extends StatelessWidget {
                     _PollFrequencyControl(
                       textColor: textColor,
                       subColor: subColor,
+                    ),
+                    const SizedBox(height: 16),
+                    _GameLedBrightnessControl(
+                      textColor: textColor,
+                      subColor: subColor,
+                      isDark: isDark,
                     ),
                     const SizedBox(height: 16),
                     _BillboardControl(
@@ -406,6 +413,70 @@ class _BillboardControl extends StatelessWidget {
   }
 }
 
+class _GameLedBrightnessControl extends StatelessWidget {
+  final Color textColor;
+  final Color subColor;
+  final bool isDark;
+
+  const _GameLedBrightnessControl({
+    required this.textColor,
+    required this.subColor,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<ServerState>();
+    final accent = isDark ? Colors.cyanAccent : Colors.blueAccent;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Game LED gamma',
+              style: TextStyle(
+                color: textColor,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+            Text(
+              state.gameLedGamma.toStringAsFixed(2),
+              style: TextStyle(color: subColor, fontSize: 13),
+            ),
+          ],
+        ),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 4,
+            activeTrackColor: accent.withValues(alpha: 0.88),
+            inactiveTrackColor: isDark
+                ? Colors.white.withValues(alpha: 0.16)
+                : Colors.black.withValues(alpha: 0.14),
+            thumbColor: Colors.white,
+            overlayColor: accent.withValues(alpha: 0.14),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 15),
+            thumbShape: const RoundSliderThumbShape(
+              enabledThumbRadius: 7,
+              elevation: 2,
+            ),
+          ),
+          child: Slider(
+            value: state.gameLedGamma,
+            min: 0.0,
+            max: 1.0,
+            label: state.gameLedGamma.toStringAsFixed(2),
+            onChanged: state.setGameLedGamma,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _BillboardDialog extends StatelessWidget {
   static const int _columnCount = 11;
   static const int _rowCount = 30;
@@ -414,7 +485,8 @@ class _BillboardDialog extends StatelessWidget {
 
   const _BillboardDialog({required this.isDark});
 
-  Color? _colorAt(List<int> rgb, int column, int row) {
+  Color? _colorAt(ServerState state, int column, int row) {
+    final rgb = state.gameBillboardRgb;
     if (rgb.length != 360) return null;
 
     final isLeftBoard = column < 5;
@@ -430,7 +502,7 @@ class _BillboardDialog extends StatelessWidget {
     final blue = rgb[offset + 2];
 
     if (red == 0 && green == 0 && blue == 0) return null;
-    return Color.fromARGB(255, red, green, blue);
+    return gameLedColor(red, green, blue, gamma: state.gameLedGamma);
   }
 
   @override
@@ -525,11 +597,7 @@ class _BillboardDialog extends StatelessWidget {
                         return Expanded(
                           child: Row(
                             children: List.generate(_columnCount, (column) {
-                              final color = _colorAt(
-                                state.gameBillboardRgb,
-                                column,
-                                row,
-                              );
+                              final color = _colorAt(state, column, row);
                               return Expanded(
                                 child: Padding(
                                   padding: const EdgeInsets.all(0.8),

@@ -12,12 +12,14 @@ class AppConfig {
   static const String defaultThemeMode = 'Auto';
   static const String defaultConnectMode = 'UDP';
   static const int defaultLedPollFrequency = 50;
+  static const double defaultGameLedGamma = 0.5;
 
   final int port;
   final String ledSource;
   final String themeMode;
   final String connectMode;
   final int ledPollFrequency;
+  final double gameLedGamma;
 
   const AppConfig({
     required this.port,
@@ -25,6 +27,7 @@ class AppConfig {
     required this.themeMode,
     required this.connectMode,
     required this.ledPollFrequency,
+    required this.gameLedGamma,
   });
 }
 
@@ -85,6 +88,12 @@ class ServerIO {
           1000,
           AppConfig.defaultLedPollFrequency,
         ),
+        gameLedGamma: _readDouble(
+          config['gameLedGamma'],
+          0.0,
+          1.0,
+          AppConfig.defaultGameLedGamma,
+        ),
       );
 
       config['configVersion'] = 1;
@@ -93,6 +102,8 @@ class ServerIO {
       config['themeMode'] = appConfig.themeMode;
       config['connectMode'] = appConfig.connectMode;
       config['ledPollFrequency'] = appConfig.ledPollFrequency;
+      config['gameLedGamma'] = appConfig.gameLedGamma;
+      config.remove('gameLedInvert');
       await _writeAppConfig(config);
       return appConfig;
     } catch (e) {
@@ -103,6 +114,7 @@ class ServerIO {
         themeMode: AppConfig.defaultThemeMode,
         connectMode: AppConfig.defaultConnectMode,
         ledPollFrequency: AppConfig.defaultLedPollFrequency,
+        gameLedGamma: AppConfig.defaultGameLedGamma,
       );
     }
   }
@@ -130,6 +142,8 @@ class ServerIO {
           'ledPollFrequency',
           () => AppConfig.defaultLedPollFrequency,
         );
+        config.putIfAbsent('gameLedGamma', () => AppConfig.defaultGameLedGamma);
+        config.remove('gameLedInvert');
         await _writeAppConfig(config);
       } catch (e) {
         debugPrint('IO Save Config Error: $e');
@@ -151,6 +165,18 @@ class ServerIO {
   static int _readInt(Object? value, int min, int max, int fallback) {
     if (value is! int || value < min || value > max) return fallback;
     return value;
+  }
+
+  static double _readDouble(
+    Object? value,
+    double min,
+    double max,
+    double fallback,
+  ) {
+    final parsed = value is num ? value.toDouble() : double.nan;
+    return parsed.isFinite && parsed >= min && parsed <= max
+        ? parsed
+        : fallback;
   }
 
   static String _readString(

@@ -19,6 +19,7 @@ class ServerState extends ChangeNotifier {
   ServerProtocol _protocol = ServerProtocol.udp;
   LedSource _ledSource = LedSource.preset;
   int _gameLedPollFrequency = 50;
+  double _gameLedGamma = AppConfig.defaultGameLedGamma;
   int _port = 37564;
   String _statusMessage = "IDLE";
 
@@ -46,6 +47,7 @@ class ServerState extends ChangeNotifier {
   ServerProtocol get protocol => _protocol;
   LedSource get ledSource => _ledSource;
   int get gameLedPollFrequency => _gameLedPollFrequency;
+  double get gameLedGamma => _gameLedGamma;
   int get port => _port;
   String get statusMessage => _statusMessage;
   String get hostIp =>
@@ -63,6 +65,7 @@ class ServerState extends ChangeNotifier {
           ? LedSource.gameMemory
           : LedSource.preset;
       _gameLedPollFrequency = initialConfig.ledPollFrequency;
+      _gameLedGamma = initialConfig.gameLedGamma;
     }
     _refreshIps();
   }
@@ -141,6 +144,15 @@ class ServerState extends ChangeNotifier {
     if (_isRunning && _ledSource == LedSource.gameMemory) {
       _startGameLedPolling();
     }
+    notifyListeners();
+  }
+
+  void setGameLedGamma(double gamma) {
+    final clamped = gamma.clamp(0.0, 1.0).toDouble();
+    final nextGamma = (clamped * 100).round() / 100.0;
+    if (_gameLedGamma == nextGamma) return;
+    _gameLedGamma = nextGamma;
+    _io.saveConfigPatch({'gameLedGamma': nextGamma});
     notifyListeners();
   }
 
