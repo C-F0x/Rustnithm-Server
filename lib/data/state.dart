@@ -8,13 +8,17 @@ import 'package:rustnithm_server/src/rust/api.dart' show SensorData;
 
 enum ServerProtocol { udp, tcp }
 
+enum LedSource { preset, gameMemory }
+
 class ServerState extends ChangeNotifier {
-  final ServerIO _io = ServerIO();
+  final ServerIO _io;
 
   bool _isRunning = false;
   bool _isActivated = false;
   bool _isTransitioning = false;
   ServerProtocol _protocol = ServerProtocol.udp;
+  LedSource _ledSource = LedSource.preset;
+  int _gameLedPollFrequency = 50;
   int _port = 37564;
   String _statusMessage = "IDLE";
 
@@ -30,17 +34,36 @@ class ServerState extends ChangeNotifier {
   int service = 0;
   int test = 0;
   Uint8List code = Uint8List(10);
+  List<int> gameSliderRgb = <int>[];
+  List<int> gameTowerRgb = <int>[];
+  List<int> gameBillboardRgb = <int>[];
+  Timer? _gameLedTimer;
+  bool _isReadingGameLed = false;
 
   bool get isRunning => _isRunning;
   bool get isActivated => _isActivated;
   bool get isTransitioning => _isTransitioning;
   ServerProtocol get protocol => _protocol;
+  LedSource get ledSource => _ledSource;
+  int get gameLedPollFrequency => _gameLedPollFrequency;
   int get port => _port;
   String get statusMessage => _statusMessage;
-  String get hostIp => _allIps.isNotEmpty ? _allIps[_currentIpIndex] : '127.0.0.1';
+  String get hostIp =>
+      _allIps.isNotEmpty ? _allIps[_currentIpIndex] : '127.0.0.1';
   bool get showTipsSignal => _showTipsSignal;
 
-  ServerState() {
+  ServerState({AppConfig? initialConfig, ServerIO? io})
+    : _io = io ?? ServerIO() {
+    if (initialConfig != null) {
+      _port = initialConfig.port;
+      _protocol = initialConfig.connectMode == 'TCP'
+          ? ServerProtocol.tcp
+          : ServerProtocol.udp;
+      _ledSource = initialConfig.ledSource == 'Game'
+          ? LedSource.gameMemory
+          : LedSource.preset;
+      _gameLedPollFrequency = initialConfig.ledPollFrequency;
+    }
     _refreshIps();
   }
 
@@ -89,12 +112,92 @@ class ServerState extends ChangeNotifier {
 
   void setPort(int p) {
     _port = p;
+    _io.saveConfigPatch({'port': p});
     notifyListeners();
   }
 
   void setProtocol(ServerProtocol p) {
     _protocol = p;
+    _io.saveConfigPatch({
+      'connectMode': p == ServerProtocol.tcp ? 'TCP' : 'UDP',
+    });
     notifyListeners();
+  }
+
+  void setLedSource(LedSource source) {
+    if (_isRunning || _isTransitioning || _ledSource == source) return;
+    _ledSource = source;
+    _io.saveConfigPatch({
+      'ledSource': source == LedSource.gameMemory ? 'Game' : 'Present',
+    });
+    notifyListeners();
+  }
+
+  void setGameLedPollFrequency(int frequency) {
+    final nextFrequency = frequency.clamp(1, 1000).toInt();
+    if (_gameLedPollFrequency == nextFrequency) return;
+    _gameLedPollFrequency = nextFrequency;
+    _io.saveConfigPatch({'ledPollFrequency': nextFrequency});
+    if (_isRunning && _ledSource == LedSource.gameMemory) {
+      _startGameLedPolling();
+    }
+    notifyListeners();
+  }
+
+  void _startGameLedPolling() {
+    _gameLedTimer?.cancel();
+    final intervalMicros =
+        (Duration.microsecondsPerSecond / _gameLedPollFrequency)
+            .round()
+            .clamp(1, Duration.microsecondsPerSecond)
+            .toInt();
+    _gameLedTimer = Timer.periodic(Duration(microseconds: intervalMicros), (
+      _,
+    ) async {
+      if (!_isRunning || _ledSource != LedSource.gameMemory) {
+        return;
+      }
+      if (_isReadingGameLed) return;
+      _isReadingGameLed = true;
+      try {
+        final data = await _io.readGameLedData();
+        if (!_isRunning || _ledSource != LedSource.gameMemory) return;
+        final slider = data.slider.length == 93
+            ? data.slider.toList()
+            : <int>[];
+        final tower = data.tower.length == 18 ? data.tower.toList() : <int>[];
+        final billboard = data.billboard.length == 360
+            ? data.billboard.toList()
+            : <int>[];
+        if (_sameList(gameSliderRgb, slider) &&
+            _sameList(gameTowerRgb, tower) &&
+            _sameList(gameBillboardRgb, billboard)) {
+          return;
+        }
+        gameSliderRgb = slider;
+        gameTowerRgb = tower;
+        gameBillboardRgb = billboard;
+        notifyListeners();
+      } finally {
+        _isReadingGameLed = false;
+      }
+    });
+  }
+
+  void _stopGameLedPolling() {
+    _gameLedTimer?.cancel();
+    _gameLedTimer = null;
+    gameSliderRgb = <int>[];
+    gameTowerRgb = <int>[];
+    gameBillboardRgb = <int>[];
+  }
+
+  static bool _sameList(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   Future<void> toggleServer() async {
@@ -102,7 +205,10 @@ class ServerState extends ChangeNotifier {
     _isTransitioning = true;
     notifyListeners();
 
-    final success = await _io.toggleServer(_port, _protocol == ServerProtocol.udp);
+    final success = await _io.toggleServer(
+      _port,
+      _protocol == ServerProtocol.udp,
+    );
 
     if (success) {
       _isRunning = !_isRunning;
@@ -110,10 +216,12 @@ class ServerState extends ChangeNotifier {
         _statusMessage = "RUNNING";
         _io.saveLastIp(_allIps[_currentIpIndex]);
         _io.listenSensors(_onSensorUpdate);
+        if (_ledSource == LedSource.gameMemory) _startGameLedPolling();
       } else {
         _statusMessage = "IDLE";
         _isActivated = false;
         _io.stopListening();
+        _stopGameLedPolling();
         _resetData();
       }
     }

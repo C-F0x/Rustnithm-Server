@@ -6,13 +6,33 @@ import 'package:window_manager/window_manager.dart';
 import 'package:flutter_acrylic/flutter_acrylic.dart';
 import 'package:rustnithm_server/src/rust/frb_generated.dart';
 import 'package:rustnithm_server/data/state.dart';
+import 'package:rustnithm_server/data/io.dart';
 
 import 'widgets/Header.dart';
 import 'widgets/Config.dart';
 import 'widgets/Visualizer.dart';
 
 class ThemeController extends ChangeNotifier {
-  ThemeMode _themeMode = ThemeMode.system;
+  final ServerIO _configIo;
+  ThemeMode _themeMode;
+
+  ThemeController({AppConfig? initialConfig, ServerIO? io})
+    : _configIo = io ?? ServerIO(),
+      _themeMode = _themeModeFromConfig(initialConfig?.themeMode) {
+    if (initialConfig == null) _themeMode = ThemeMode.system;
+  }
+
+  static ThemeMode _themeModeFromConfig(String? value) {
+    switch (value) {
+      case 'Light':
+        return ThemeMode.light;
+      case 'Dark':
+        return ThemeMode.dark;
+      default:
+        return ThemeMode.system;
+    }
+  }
+
   ThemeMode get themeMode => _themeMode;
 
   void toggleTheme() {
@@ -23,33 +43,45 @@ class ThemeController extends ChangeNotifier {
     } else {
       _themeMode = ThemeMode.system;
     }
+    _saveThemeMode();
     _updateWindowEffect();
     notifyListeners();
   }
 
   void setThemeMode(int index) {
+    if (index < 0 || index >= ThemeMode.values.length) return;
     _themeMode = ThemeMode.values[index];
+    _saveThemeMode();
     _updateWindowEffect();
     notifyListeners();
+  }
+
+  void _saveThemeMode() {
+    final value = switch (_themeMode) {
+      ThemeMode.system => 'Auto',
+      ThemeMode.light => 'Light',
+      ThemeMode.dark => 'Dark',
+    };
+    _configIo.saveConfigPatch({'themeMode': value});
   }
 
   void _updateWindowEffect() {
     if (!Platform.isWindows) return;
 
     final brightness = PlatformDispatcher.instance.platformBrightness;
-    bool isDark = _themeMode == ThemeMode.dark ||
+    bool isDark =
+        _themeMode == ThemeMode.dark ||
         (_themeMode == ThemeMode.system && brightness == Brightness.dark);
 
-    Window.setEffect(
-      effect: WindowEffect.tabbed,
-      dark: isDark,
-    );
+    Window.setEffect(effect: WindowEffect.tabbed, dark: isDark);
   }
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  final configIo = ServerIO();
+  final appConfig = await configIo.loadConfig();
   await RustLib.init();
 
   if (Platform.isWindows) {
@@ -69,10 +101,14 @@ void main() async {
 
     windowManager.waitUntilReadyToShow(windowOptions, () async {
       final brightness = PlatformDispatcher.instance.platformBrightness;
-      await Window.setEffect(
-        effect: WindowEffect.tabbed,
-        dark: brightness == Brightness.dark,
+      final configuredTheme = ThemeController._themeModeFromConfig(
+        appConfig.themeMode,
       );
+      final isDark =
+          configuredTheme == ThemeMode.dark ||
+          (configuredTheme == ThemeMode.system &&
+              brightness == Brightness.dark);
+      await Window.setEffect(effect: WindowEffect.tabbed, dark: isDark);
       await windowManager.show();
       await windowManager.focus();
     });
@@ -81,8 +117,13 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => ServerState()),
-        ChangeNotifierProvider(create: (_) => ThemeController()),
+        ChangeNotifierProvider(
+          create: (_) => ServerState(initialConfig: appConfig, io: configIo),
+        ),
+        ChangeNotifierProvider(
+          create: (_) =>
+              ThemeController(initialConfig: appConfig, io: configIo),
+        ),
       ],
       child: const RustnithmApp(),
     ),
@@ -105,14 +146,18 @@ class RustnithmApp extends StatelessWidget {
         brightness: Brightness.light,
         scaffoldBackgroundColor: Colors.transparent,
         colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.cyanAccent, brightness: Brightness.light),
+          seedColor: Colors.cyanAccent,
+          brightness: Brightness.light,
+        ),
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
         scaffoldBackgroundColor: Colors.transparent,
         colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.cyanAccent, brightness: Brightness.dark),
+          seedColor: Colors.cyanAccent,
+          brightness: Brightness.dark,
+        ),
       ),
       home: const MainScreen(),
     );
@@ -135,14 +180,9 @@ class MainScreen extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    SizedBox(
-                      width: 258,
-                      child: HeaderBrand(),
-                    ),
+                    SizedBox(width: 258, child: HeaderBrand()),
                     SizedBox(width: 48),
-                    Expanded(
-                      child: HeaderConfig(),
-                    ),
+                    Expanded(child: HeaderConfig()),
                   ],
                 ),
               ),

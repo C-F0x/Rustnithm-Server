@@ -189,11 +189,13 @@ class _HeaderConfigState extends State<HeaderConfig> {
         children: [
           _buildThemeToggle(themeController, isDark),
           const SizedBox(width: 8),
-          _buildDivider(isDark),
+          const SizedBox(width: 21),
           _buildIndicator(state, isDark),
-          _buildDivider(isDark),
+          const SizedBox(width: 21),
           _buildProtocolToggle(state, isDark),
-          _buildDivider(isDark),
+          const SizedBox(width: 21),
+          _buildLedSourceToggle(state, isDark),
+          const SizedBox(width: 21),
           _buildIpSelector(state, isDark, itemBg, borderColor),
           const SizedBox(width: 16),
           _buildPortField(state, textColor, itemBg, borderColor, isDark),
@@ -357,6 +359,58 @@ class _HeaderConfigState extends State<HeaderConfig> {
     );
   }
 
+  Widget _buildLedSourceToggle(ServerState state, bool isDark) {
+    final isGameMemory = state.ledSource == LedSource.gameMemory;
+    final isDisabled = state.isRunning || state.isTransitioning;
+    final activeColor = isGameMemory
+        ? (isDark ? Colors.cyanAccent : Colors.blueAccent)
+        : (isDark ? Colors.orangeAccent : Colors.deepOrange.shade600);
+    final disabledColor = isDark
+        ? Colors.white.withValues(alpha: 0.2)
+        : Colors.black.withValues(alpha: 0.2);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.black.withValues(alpha: 0.12);
+    final bgColor = isDark
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.03);
+
+    return Tooltip(
+      message: isGameMemory ? 'Load LED from game' : 'Use preset LED',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isDisabled
+              ? null
+              : () => state.setLedSource(
+                    isGameMemory ? LedSource.preset : LedSource.gameMemory,
+                  ),
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: borderColor),
+              color: bgColor,
+            ),
+            child: Center(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: Icon(
+                  isGameMemory ? Icons.memory_rounded : Icons.palette_outlined,
+                  key: ValueKey(isGameMemory),
+                  size: 18,
+                  color: isDisabled ? disabledColor : activeColor,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildIpSelector(ServerState state, bool isDark, Color itemBg, Color borderColor) {
     return Expanded(
       flex: 3,
@@ -462,18 +516,4 @@ class _HeaderConfigState extends State<HeaderConfig> {
     );
   }
 
-  Widget _buildDivider(bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      child: SizedBox(
-        height: 24,
-        child: VerticalDivider(
-          width: 1,
-          color: isDark
-              ? Colors.white10
-              : Colors.black.withValues(alpha: 0.1),
-        ),
-      ),
-    );
-  }
 }

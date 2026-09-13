@@ -14,6 +14,12 @@ pub struct SensorData {
     pub code: [u8; 10],
 }
 
+pub struct GameLedData {
+    pub slider: Vec<u8>,
+    pub tower: Vec<u8>,
+    pub billboard: Vec<u8>,
+}
+
 pub static SENSOR_SINK: LazyLock<RwLock<Option<StreamSink<SensorData>>>> = LazyLock::new(|| {
     RwLock::new(None)
 });
@@ -35,7 +41,9 @@ pub fn init_last_ip(ip: String) {
 }
 
 pub fn toggle_server(port: u16, is_udp: bool) -> bool {
-    let _ = crate::shmem::init_shmem();
+    if crate::shmem::init_shmem().is_err() {
+        return false;
+    }
     match SERVER_INSTANCE.lock() {
         Ok(lock) => {
             if lock.is_running_status() {
@@ -91,6 +99,22 @@ pub fn toggle_sync() -> bool {
             lock.send_handshake(payload)
         }
         Err(_) => false,
+    }
+}
+
+pub fn read_game_led_data() -> GameLedData {
+    if let Ok(lock) = GLOBAL_SHMEM.lock() {
+        if let Some(manager) = lock.as_ref() {
+            if let Some((slider, tower, billboard)) = manager.read_game_leds() {
+                return GameLedData { slider, tower, billboard };
+            }
+        }
+    }
+
+    GameLedData {
+        slider: Vec::new(),
+        tower: Vec::new(),
+        billboard: Vec::new(),
     }
 }
 

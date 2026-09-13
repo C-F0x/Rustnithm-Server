@@ -11,13 +11,67 @@ unsafe impl Sync for ShmemManager {}
 
 impl ShmemManager {
     pub fn new(path: &str, size: usize) -> Result<Self, Box<dyn std::error::Error>> {
-        let shmem = match ShmemConf::new().os_id(path).open() {
-            Ok(m) => m,
-            Err(_) => {
-                ShmemConf::new().size(size).os_id(path).create()?
+        let shmem = {
+            #[cfg(windows)]
+            {
+                Self::open_windows_mapping(path, size)?
+            }
+            #[cfg(not(windows))]
+            {
+                match ShmemConf::new().os_id(path).open() {
+                    Ok(m) => m,
+                    Err(_) => ShmemConf::new().size(size).os_id(path).create()?,
+                }
             }
         };
         Ok(Self { shmem })
+    }
+
+    #[cfg(windows)]
+    fn open_windows_mapping(
+        path: &str,
+        size: usize,
+    ) -> Result<Shmem, Box<dyn std::error::Error>> {
+        let local_path = format!("Local\\{path}");
+        let open_raw = |mapping_name: &str| {
+            ShmemConf::new()
+                .os_id(mapping_name)
+                .allow_raw(true)
+                .open()
+        };
+
+        // A previous shared_memory-rs owner can leave its temp sidecar behind.
+        // While that file exists, the crate attempts to open a file-backed map
+        // and never reaches its raw OpenFileMappingW fallback. Move the stale
+        // sidecar aside so the IO-created native mapping can be opened.
+        let mut sidecar = std::env::temp_dir();
+        sidecar.push("shared_memory-rs");
+        sidecar.push(path.trim_start_matches('/'));
+        let backup = sidecar.with_extension(format!("stale-{}", std::process::id()));
+        let moved_sidecar = sidecar.exists() && std::fs::rename(&sidecar, &backup).is_ok();
+
+        // Rustnithm-IO creates the mapping in the Local namespace. Prefer it
+        // explicitly; an unprefixed mapping may exist separately and contain
+        // only the server's fallback zeroed buffer.
+        let raw_result = match open_raw(&local_path) {
+            Ok(mapping) => Ok(mapping),
+            Err(local_error) => open_raw(path).map_err(|_| local_error),
+        };
+        if moved_sidecar {
+            if raw_result.is_ok() {
+                let _ = std::fs::remove_file(&backup);
+            } else {
+                let _ = std::fs::rename(&backup, &sidecar);
+            }
+        }
+
+        match raw_result {
+            Ok(mapping) => Ok(mapping),
+            Err(_) => match ShmemConf::new().os_id(path).open() {
+                Ok(mapping) => Ok(mapping),
+                Err(_) => Ok(ShmemConf::new().size(size).os_id(path).create()?),
+            },
+        }
     }
 
     pub fn write_data(&self, air: &[u8], slider: &[u8]) {
@@ -59,6 +113,34 @@ impl ShmemManager {
             data_slice[140..140 + copy_len].copy_from_slice(&raw_bcd[..copy_len]);
             data_slice[138] = 1;
         }
+    }
+
+    pub fn read_game_leds(&self) -> Option<(Vec<u8>, Vec<u8>, Vec<u8>)> {
+        let len = self.shmem.len();
+        if len < 168 { return None; }
+
+        let ptr = self.shmem.as_ptr();
+        let data = unsafe { slice::from_raw_parts(ptr, len) };
+
+        let slider_before = data[131];
+        if slider_before & 1 != 0 { return None; }
+        let slider = data[38..131].to_vec();
+        let slider_after = data[131];
+        if slider_before != slider_after || slider_after & 1 != 0 {
+            return None;
+        }
+
+        if len < 529 { return None; }
+        let cabinet_before = data[528];
+        if cabinet_before & 1 != 0 { return None; }
+        let tower = data[150..168].to_vec();
+        let billboard = data[168..528].to_vec();
+        let cabinet_after = data[528];
+        if cabinet_before != cabinet_after || cabinet_after & 1 != 0 {
+            return None;
+        }
+
+        Some((slider, tower, billboard))
     }
 }
 

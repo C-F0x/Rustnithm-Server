@@ -22,6 +22,9 @@ Future<void> handleHandshake({required HandshakePayload incoming}) =>
 
 Future<bool> toggleSync() => RustLib.instance.api.crateApiToggleSync();
 
+Future<GameLedData> readGameLedData() =>
+    RustLib.instance.api.crateApiReadGameLedData();
+
 Future<void> syncToShmem({
   required List<int> air,
   required List<int> slider,
@@ -51,6 +54,30 @@ Future<void> reportToFlutter({
   test: test,
   code: code,
 );
+
+class GameLedData {
+  final Uint8List slider;
+  final Uint8List tower;
+  final Uint8List billboard;
+
+  const GameLedData({
+    required this.slider,
+    required this.tower,
+    required this.billboard,
+  });
+
+  @override
+  int get hashCode => slider.hashCode ^ tower.hashCode ^ billboard.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GameLedData &&
+          runtimeType == other.runtimeType &&
+          slider == other.slider &&
+          tower == other.tower &&
+          billboard == other.billboard;
+}
 
 class SensorData {
   final Uint8List air;
