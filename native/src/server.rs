@@ -1,12 +1,15 @@
 use std::net::{UdpSocket, SocketAddr, TcpListener, TcpStream};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use std::io::{Read, Write};
-use crate::protocol::{ProtocolParser, PacketType};
+use crate::protocol::{ProtocolParser, PacketType, ToggleFrame};
 use crate::shmem::GLOBAL_SHMEM;
 use crate::api::report_to_flutter;
+
+pub static LED_SOURCE_GAME: AtomicBool = AtomicBool::new(false);
+pub static LED_SEND_HZ: AtomicU32 = AtomicU32::new(100);
 
 pub struct ServerConfig {
     pub port: u16,
@@ -17,8 +20,10 @@ pub struct SensorServer {
     is_running: Arc<AtomicBool>,
     is_active: Arc<AtomicBool>,
     pub last_client_addr: Arc<Mutex<Option<SocketAddr>>>,
+    pub target_client_addr: Arc<Mutex<Option<SocketAddr>>>,
     pub socket: Arc<Mutex<Option<UdpSocket>>>,
     pub tcp_writer: Arc<Mutex<Option<TcpStream>>>,
+    pub pending_toggle: Arc<Mutex<Option<(u32, bool, Instant)>>>,
 }
 
 impl SensorServer {
@@ -27,8 +32,10 @@ impl SensorServer {
             is_running: Arc::new(AtomicBool::new(false)),
             is_active: Arc::new(AtomicBool::new(false)),
             last_client_addr: Arc::new(Mutex::new(None)),
+            target_client_addr: Arc::new(Mutex::new(None)),
             socket: Arc::new(Mutex::new(None)),
             tcp_writer: Arc::new(Mutex::new(None)),
+            pending_toggle: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -55,6 +62,27 @@ impl SensorServer {
         let last_client_addr = self.last_client_addr.clone();
         let shared_socket = self.socket.clone();
         let shared_tcp_writer = self.tcp_writer.clone();
+        let target_client_addr_for_led = self.target_client_addr.clone();
+        let led_socket = self.socket.clone();
+        let led_tcp_writer = self.tcp_writer.clone();
+
+        let led_running = is_running.clone();
+        thread::spawn(move || {
+            let mut next_tick = Instant::now();
+            while led_running.load(Ordering::SeqCst) {
+                if LED_SOURCE_GAME.load(Ordering::Relaxed) {
+                    let hz = LED_SEND_HZ.load(Ordering::Relaxed).clamp(50, 1000);
+                    let interval = Duration::from_secs_f64(1.0 / hz as f64);
+                    if Instant::now() >= next_tick {
+                        next_tick = Instant::now() + interval;
+                        send_led_frames(&led_socket, &led_tcp_writer, &target_client_addr_for_led);
+                    }
+                } else {
+                    next_tick = Instant::now();
+                }
+                thread::sleep(Duration::from_millis(1));
+            }
+        });
 
         if is_tcp {
             thread::spawn(move || {
@@ -86,7 +114,7 @@ impl SensorServer {
                             let is_active_inner = is_active.clone();
 
                             thread::spawn(move || {
-                                handle_tcp_client(stream, is_running_inner, is_active_inner);
+                                handle_tcp_client(stream, src, is_running_inner, is_active_inner);
                             });
                         }
                         Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
@@ -137,6 +165,9 @@ impl SensorServer {
                                     &is_active,
                                     &mut last_button_time,
                                     &mut last_card_time,
+                                    Some(&socket),
+                                    Some(src),
+                                    None,
                                 );
                             }
                         }
@@ -144,6 +175,7 @@ impl SensorServer {
                     }
 
                     tick_ttl(&mut last_button_time, &mut last_card_time, ttl_duration);
+                    crate::api::check_toggle_timeout();
                 }
 
                 if let Ok(mut guard) = shared_socket.lock() {
@@ -158,6 +190,33 @@ impl SensorServer {
         if let Ok(mut guard) = self.tcp_writer.lock() {
             *guard = None;
         }
+        if let Ok(mut guard) = self.pending_toggle.lock() { *guard = None; }
+    }
+
+    pub fn send_toggle(&self, frame: ToggleFrame) -> bool {
+        if let Ok(mut guard) = self.tcp_writer.lock() {
+            if let Some(stream) = guard.as_mut() {
+                let packet = crate::protocol::ProtocolParser::build_toggle(0b1100_0000, frame);
+                let len = (packet.len() as u16).to_le_bytes();
+                return stream.write_all(&len).and_then(|_| stream.write_all(&packet)).is_ok();
+            }
+        }
+        let packet = crate::protocol::ProtocolParser::build_toggle(0b0100_0000, frame);
+        let target = self.target_client_addr.lock().ok().and_then(|g| *g)
+            .or_else(|| self.last_client_addr.lock().ok().and_then(|g| *g));
+        if let (Some(dest), Ok(socket_guard)) = (target, self.socket.lock()) {
+            if let Some(socket) = socket_guard.as_ref() { return socket.send_to(&packet, dest).is_ok(); }
+        }
+        false
+    }
+
+    pub fn send_toggle_to(&self, frame: ToggleFrame, tcp_stream: Option<&mut TcpStream>) -> bool {
+        if let Some(stream) = tcp_stream {
+            let packet = crate::protocol::ProtocolParser::build_toggle(0b1100_0000, frame);
+            let len = (packet.len() as u16).to_le_bytes();
+            return stream.write_all(&len).and_then(|_| stream.write_all(&packet)).is_ok();
+        }
+        self.send_toggle(frame)
     }
 
     pub fn send_handshake(&self, p: crate::protocol::HandshakePayload) -> bool {
@@ -198,6 +257,7 @@ impl SensorServer {
 
 fn handle_tcp_client(
     stream: TcpStream,
+    peer_addr: SocketAddr,
     is_running: Arc<AtomicBool>,
     is_active: Arc<AtomicBool>,
 ) {
@@ -226,7 +286,7 @@ fn handle_tcp_client(
                     reassembly.drain(..2 + frame_len);
 
                     if !frame.is_empty() {
-                        process_packet(&frame, &is_active, &mut last_button_time, &mut last_card_time);
+                        process_packet(&frame, &is_active, &mut last_button_time, &mut last_card_time, None, Some(peer_addr), Some(&mut stream));
                     }
                 }
             }
@@ -236,6 +296,7 @@ fn handle_tcp_client(
         }
 
         tick_ttl(&mut last_button_time, &mut last_card_time, ttl_duration);
+        crate::api::check_toggle_timeout();
     }
 }
 
@@ -244,6 +305,9 @@ fn process_packet(
     is_active: &AtomicBool,
     last_button_time: &mut Option<Instant>,
     last_card_time: &mut Option<Instant>,
+    udp_socket: Option<&UdpSocket>,
+    source: Option<SocketAddr>,
+    tcp_stream: Option<&mut TcpStream>,
 ) {
     if raw.is_empty() { return; }
 
@@ -256,9 +320,8 @@ fn process_packet(
     };
 
     if header.packet_type == PacketType::Handshake {
-        if !payload.is_empty() {
-            let incoming = ProtocolParser::parse_handshake(payload[0]);
-            crate::api::handle_handshake(incoming);
+        if let Some(toggle) = ProtocolParser::parse_toggle(payload) {
+            crate::api::handle_toggle(toggle, udp_socket, source, tcp_stream);
         }
         return;
     }
@@ -338,4 +401,60 @@ fn tick_ttl(
             *last_card_time = None;
         }
     }
+}
+
+fn send_led_frames(
+    socket: &Arc<Mutex<Option<UdpSocket>>>,
+    tcp_writer: &Arc<Mutex<Option<TcpStream>>>,
+    target: &Arc<Mutex<Option<SocketAddr>>>,
+) {
+    let Some((slider, tower, billboard)) = GLOBAL_SHMEM
+        .lock().ok().and_then(|g| g.as_ref().and_then(|m| m.read_game_leds())) else { return; };
+    let frames = [
+        (0x50u8, encode_slider_payload(&slider)),
+        (0x60u8, encode_led_payload(&tower)),
+        (0x70u8, encode_led_payload(&billboard)),
+    ];
+    if let Ok(mut writer) = tcp_writer.lock() {
+        if let Some(stream) = writer.as_mut() {
+            for (header, data) in &frames {
+                let packet = std::iter::once(*header | 0x80)
+                    .chain(data.iter().copied()).collect::<Vec<_>>();
+                let len = (packet.len() as u16).to_le_bytes();
+                let mut framed = Vec::with_capacity(2 + packet.len());
+                framed.extend_from_slice(&len);
+                framed.extend_from_slice(&packet);
+                if stream.write_all(&framed).is_err() { break; }
+            }
+            return;
+        }
+    }
+    let Some(dest) = target.lock().ok().and_then(|g| *g) else { return; };
+    let Ok(guard) = socket.lock() else { return; };
+    let Some(sock) = guard.as_ref() else { return; };
+    for (header, data) in &frames {
+        let mut packet = Vec::with_capacity(1 + data.len());
+        packet.push(*header);
+        packet.extend_from_slice(data);
+        let _ = sock.send_to(&packet, dest);
+    }
+}
+
+fn encode_led_payload(rgb: &[u8]) -> Vec<u8> {
+    let mut payload = Vec::with_capacity((rgb.len() / 3) * 4);
+    for chunk in rgb.chunks_exact(3) {
+        payload.extend_from_slice(chunk);
+        payload.push(255);
+    }
+    payload
+}
+
+fn encode_slider_payload(rgb: &[u8]) -> Vec<u8> {
+    let mut payload = Vec::with_capacity((rgb.len() / 3) * 4);
+    // Slider bytes retain the IO-layer BRG order. Convert only this stream to
+    // the wire-level RGB order; cabinet/tower streams are already RGB.
+    for chunk in rgb.chunks_exact(3) {
+        payload.extend_from_slice(&[chunk[1], chunk[2], chunk[0], 255]);
+    }
+    payload
 }

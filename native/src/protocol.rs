@@ -19,6 +19,20 @@ pub struct HandshakePayload {
     pub server_target: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ToggleOpcode { Request = 1, Response = 2 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ToggleResult { None = 0, Done = 1, Already = 2, Fail = 3, Clash = 4 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ToggleFrame {
+    pub opcode: ToggleOpcode,
+    pub target: bool,
+    pub request_id: u32,
+    pub result: ToggleResult,
+}
+
 pub struct ControlPayload {
     pub air: [u8; 6],
     pub slider: [u8; 32],
@@ -54,6 +68,35 @@ impl ProtocolParser {
             client_target: (payload_byte >> 5) & 1 == 1,
             server_target: (payload_byte >> 4) & 1 == 1,
         }
+    }
+
+    pub fn parse_toggle(payload: &[u8]) -> Option<ToggleFrame> {
+        if payload.len() < 7 { return None; }
+        let opcode = match payload[0] { 1 => ToggleOpcode::Request, 2 => ToggleOpcode::Response, _ => return None };
+        let target = payload[1] != 0;
+        let request_id = u32::from_le_bytes([payload[2], payload[3], payload[4], payload[5]]);
+        let result = match payload.get(6).copied().unwrap_or(0) {
+            0 => ToggleResult::None,
+            1 => ToggleResult::Done,
+            2 => ToggleResult::Already,
+            3 => ToggleResult::Fail,
+            4 => ToggleResult::Clash,
+            _ => return None,
+        };
+        Some(ToggleFrame { opcode, target, request_id, result })
+    }
+
+    pub fn build_toggle(header: u8, frame: ToggleFrame) -> Vec<u8> {
+        vec![
+            header,
+            frame.opcode as u8,
+            frame.target as u8,
+            (frame.request_id & 0xff) as u8,
+            ((frame.request_id >> 8) & 0xff) as u8,
+            ((frame.request_id >> 16) & 0xff) as u8,
+            ((frame.request_id >> 24) & 0xff) as u8,
+            frame.result as u8,
+        ]
     }
 
     pub fn build_handshake_response(

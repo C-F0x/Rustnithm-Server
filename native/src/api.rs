@@ -3,7 +3,8 @@ use crate::shmem::GLOBAL_SHMEM;
 pub use crate::frb_generated::StreamSink;
 use std::sync::{RwLock, LazyLock};
 use std::net::SocketAddr;
-use crate::protocol::HandshakePayload;
+use crate::protocol::{HandshakePayload, ToggleFrame, ToggleOpcode, ToggleResult};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub struct SensorData {
     pub air: Vec<u8>,
@@ -31,10 +32,24 @@ pub fn create_sensor_stream(sink: StreamSink<SensorData>) {
 }
 
 pub fn init_last_ip(ip: String) {
+    if ip.trim().is_empty() {
+        if let Ok(lock) = SERVER_INSTANCE.lock() {
+            if let Ok(mut addr_guard) = lock.last_client_addr.lock() {
+                *addr_guard = None;
+            }
+            if let Ok(mut target_guard) = lock.target_client_addr.lock() {
+                *target_guard = None;
+            }
+        }
+        return;
+    }
     if let Ok(addr) = ip.parse::<SocketAddr>() {
         if let Ok(lock) = SERVER_INSTANCE.lock() {
             if let Ok(mut addr_guard) = lock.last_client_addr.lock() {
                 *addr_guard = Some(addr);
+            }
+            if let Ok(mut target_guard) = lock.target_client_addr.lock() {
+                *target_guard = Some(addr);
             }
         }
     }
@@ -90,16 +105,81 @@ pub fn toggle_sync() -> bool {
             let current_active = lock.is_active_status();
             let next_state = !current_active;
 
-            let payload = HandshakePayload {
-                client_current: false,
-                server_current: current_active,
-                client_target: next_state,
-                server_target: next_state,
-            };
-            lock.send_handshake(payload)
+            if lock.pending_toggle.lock().ok().map(|g| g.is_some()).unwrap_or(true) { return false; }
+            let request_id = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u32;
+            if let Ok(mut pending) = lock.pending_toggle.lock() { *pending = Some((request_id, next_state, Instant::now() + std::time::Duration::from_millis(500))); }
+            let sent = lock.send_toggle(ToggleFrame { opcode: ToggleOpcode::Request, target: next_state, request_id, result: ToggleResult::None });
+            if !sent { if let Ok(mut pending) = lock.pending_toggle.lock() { *pending = None; } }
+            sent
         }
         Err(_) => false,
     }
+}
+
+pub(crate) fn handle_toggle(
+    incoming: ToggleFrame,
+    udp_socket: Option<&std::net::UdpSocket>,
+    source: Option<SocketAddr>,
+    tcp_stream: Option<&mut std::net::TcpStream>,
+) {
+    let Ok(server) = SERVER_INSTANCE.lock() else { return; };
+    if !server.is_running_status() { return; }
+    if udp_socket.is_some() {
+        if let (Some(expected), Some(actual)) = (
+            server.target_client_addr.lock().ok().and_then(|g| *g),
+            source,
+        ) {
+            if expected != actual { return; }
+        }
+    }
+    match incoming.opcode {
+        ToggleOpcode::Request => {
+            let busy = server.pending_toggle.lock().ok().map(|g| g.is_some()).unwrap_or(true);
+            let result = if busy {
+                    if let Ok(mut pending) = server.pending_toggle.lock() { *pending = None; }
+                    ToggleResult::Clash
+                }
+                else if server.is_active_status() == incoming.target { ToggleResult::Already }
+                else { server.set_active(incoming.target); ToggleResult::Done };
+            let _ = server.send_toggle_to(
+                ToggleFrame {
+                    opcode: ToggleOpcode::Response,
+                    target: incoming.target,
+                    request_id: incoming.request_id,
+                    result,
+                },
+                tcp_stream,
+            );
+        }
+        ToggleOpcode::Response => {
+            if let Ok(mut guard) = server.pending_toggle.lock() {
+                if let Some((id, target, _)) = *guard {
+                    if id == incoming.request_id {
+                        if incoming.result == ToggleResult::Done || incoming.result == ToggleResult::Already { server.set_active(target); }
+                        *guard = None;
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub(crate) fn check_toggle_timeout() {
+    if let Ok(server) = SERVER_INSTANCE.lock() {
+        if let Ok(mut guard) = server.pending_toggle.lock() {
+            if let Some((_, _, deadline)) = *guard {
+                if Instant::now() >= deadline { *guard = None; }
+            }
+        }
+    }
+}
+
+pub fn set_led_source(game: bool) {
+    crate::server::LED_SOURCE_GAME.store(game, std::sync::atomic::Ordering::SeqCst);
+}
+
+pub fn set_led_send_frequency(frequency: u32) {
+    crate::server::LED_SEND_HZ.store(frequency.clamp(50, 1000), std::sync::atomic::Ordering::SeqCst);
 }
 
 pub fn read_game_led_data() -> GameLedData {

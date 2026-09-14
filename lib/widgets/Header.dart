@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:ui';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:rustnithm_server/main.dart';
@@ -169,72 +170,213 @@ class _AboutDialog extends StatelessWidget {
                   ],
                 ),
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Rustnithm Server',
-                      style: TextStyle(
-                        color: textColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 24,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'A mixture of dart and rust',
-                      style: TextStyle(color: subColor, fontSize: 14),
-                    ),
-                    const SizedBox(height: 18),
-                    _PollFrequencyControl(
-                      textColor: textColor,
-                      subColor: subColor,
-                    ),
-                    const SizedBox(height: 16),
-                    _GameLedBrightnessControl(
-                      textColor: textColor,
-                      subColor: subColor,
-                      isDark: isDark,
-                    ),
-                    const SizedBox(height: 16),
-                    _BillboardControl(
-                      textColor: textColor,
-                      subColor: subColor,
-                      isDark: isDark,
-                    ),
-                    const SizedBox(height: 16),
-                    GestureDetector(
-                      onTap: onLaunchUrl,
-                      child: Text(
-                        'GitHub@C-F0x/Rustnithm-Server',
-                        style: TextStyle(
-                          color: isDark
-                              ? Colors.lightBlueAccent
-                              : Colors.blueAccent,
-                          fontSize: 13,
-                          decoration: TextDecoration.underline,
-                          decorationColor: isDark
-                              ? Colors.lightBlueAccent
-                              : Colors.blueAccent,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Rustnithm Server',
+                          style: TextStyle(
+                            color: textColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 24,
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'A mixture of dart and rust',
+                          style: TextStyle(color: subColor, fontSize: 14),
+                        ),
+                        const SizedBox(height: 18),
+                        _PollFrequencyControl(
+                          textColor: textColor,
+                          subColor: subColor,
+                        ),
+                        const SizedBox(height: 16),
+                        _LedSendFrequencyControl(
+                          textColor: textColor,
+                          subColor: subColor,
+                        ),
+                        const SizedBox(height: 16),
+                        _GameLedBrightnessControl(
+                          textColor: textColor,
+                          subColor: subColor,
+                          isDark: isDark,
+                        ),
+                        const SizedBox(height: 16),
+                        _PeerEndpointControl(
+                          textColor: textColor,
+                          subColor: subColor,
+                          isDark: isDark,
+                        ),
+                        const SizedBox(height: 16),
+                        _BillboardControl(
+                          textColor: textColor,
+                          subColor: subColor,
+                          isDark: isDark,
+                        ),
+                        const SizedBox(height: 16),
+                        GestureDetector(
+                          onTap: onLaunchUrl,
+                          child: Text(
+                            'GitHub@C-F0x/Rustnithm-Server',
+                            style: TextStyle(
+                              color: isDark
+                                  ? Colors.lightBlueAccent
+                                  : Colors.blueAccent,
+                              fontSize: 13,
+                              decoration: TextDecoration.underline,
+                              decorationColor: isDark
+                                  ? Colors.lightBlueAccent
+                                  : Colors.blueAccent,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: Text(
+                              'OK',
+                              style: TextStyle(color: subColor),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text('OK', style: TextStyle(color: subColor)),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PeerEndpointControl extends StatefulWidget {
+  final Color textColor;
+  final Color subColor;
+  final bool isDark;
+
+  const _PeerEndpointControl({
+    required this.textColor,
+    required this.subColor,
+    required this.isDark,
+  });
+
+  @override
+  State<_PeerEndpointControl> createState() => _PeerEndpointControlState();
+}
+
+class _PeerEndpointControlState extends State<_PeerEndpointControl> {
+  late final TextEditingController _ipController;
+  late final TextEditingController _portController;
+
+  @override
+  void initState() {
+    super.initState();
+    final state = context.read<ServerState>();
+    _ipController = TextEditingController(text: state.targetIp);
+    _portController = TextEditingController(text: state.targetPort.toString());
+  }
+
+  @override
+  void dispose() {
+    _ipController.dispose();
+    _portController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final state = context.read<ServerState>();
+    final ip = _ipController.text.trim();
+    final port = int.tryParse(_portController.text.trim());
+    if (ip.isEmpty ||
+        (InternetAddress.tryParse(ip)?.type == InternetAddressType.IPv4 &&
+            port != null &&
+            port >= 1 &&
+            port <= 65535)) {
+      state.setTargetIp(ip);
+      if (port != null) state.setTargetPort(port);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final itemColor = widget.isDark
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.04);
+    final borderColor = widget.isDark
+        ? Colors.white.withValues(alpha: 0.12)
+        : Colors.black.withValues(alpha: 0.10);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Peer endpoint (for sync/LED)',
+          style: TextStyle(
+            color: widget.textColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: TextField(
+                controller: _ipController,
+                onSubmitted: (_) => _save(),
+                onEditingComplete: _save,
+                decoration: InputDecoration(
+                  labelText: 'Target IP',
+                  isDense: true,
+                  filled: true,
+                  fillColor: itemColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: BorderSide(color: borderColor),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 2,
+              child: TextField(
+                controller: _portController,
+                keyboardType: TextInputType.number,
+                onSubmitted: (_) => _save(),
+                onEditingComplete: _save,
+                decoration: InputDecoration(
+                  labelText: 'Target port',
+                  isDense: true,
+                  filled: true,
+                  fillColor: itemColor,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: BorderSide(color: borderColor),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 3),
+        Text(
+          'Leave IP empty until the peer is configured.',
+          style: TextStyle(color: widget.subColor, fontSize: 11),
+        ),
+      ],
     );
   }
 }
@@ -300,6 +442,65 @@ class _PollFrequencyControl extends StatelessWidget {
             divisions: 999,
             label: '$frequency Hz',
             onChanged: (value) => state.setGameLedPollFrequency(value.round()),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LedSendFrequencyControl extends StatelessWidget {
+  final Color textColor;
+  final Color subColor;
+
+  const _LedSendFrequencyControl({
+    required this.textColor,
+    required this.subColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<ServerState>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final frequency = state.ledSendFrequency;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'LED send frequency',
+              style: TextStyle(
+                color: textColor,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+            Text('$frequency Hz', style: TextStyle(color: subColor, fontSize: 13)),
+          ],
+        ),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 4,
+            activeTrackColor: isDark
+                ? Colors.cyanAccent.withValues(alpha: 0.88)
+                : Colors.blueAccent.withValues(alpha: 0.82),
+            inactiveTrackColor: isDark
+                ? Colors.white.withValues(alpha: 0.16)
+                : Colors.black.withValues(alpha: 0.14),
+            thumbColor: Colors.white,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7, elevation: 2),
+            overlayColor: (isDark ? Colors.cyanAccent : Colors.blueAccent).withValues(alpha: 0.14),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 15),
+            trackShape: const RoundedRectSliderTrackShape(),
+          ),
+          child: Slider(
+            value: frequency.toDouble(),
+            min: 50,
+            max: 1000,
+            label: '$frequency Hz',
+            onChanged: (value) => state.setLedSendFrequency(value.round()),
           ),
         ),
       ],

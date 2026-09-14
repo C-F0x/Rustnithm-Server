@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'io.dart';
 import 'package:rustnithm_server/src/rust/api.dart' show SensorData;
+import 'package:rustnithm_server/src/rust/api.dart' as rust_api;
 
 enum ServerProtocol { udp, tcp }
 
@@ -19,8 +20,11 @@ class ServerState extends ChangeNotifier {
   ServerProtocol _protocol = ServerProtocol.udp;
   LedSource _ledSource = LedSource.preset;
   int _gameLedPollFrequency = 50;
+  int _ledSendFrequency = AppConfig.defaultLedSendFrequency;
   double _gameLedGamma = AppConfig.defaultGameLedGamma;
   int _port = 37564;
+  String _targetIp = AppConfig.defaultTargetIp;
+  int _targetPort = AppConfig.defaultTargetPort;
   String _statusMessage = "IDLE";
 
   int _failCount = 0;
@@ -47,8 +51,11 @@ class ServerState extends ChangeNotifier {
   ServerProtocol get protocol => _protocol;
   LedSource get ledSource => _ledSource;
   int get gameLedPollFrequency => _gameLedPollFrequency;
+  int get ledSendFrequency => _ledSendFrequency;
   double get gameLedGamma => _gameLedGamma;
   int get port => _port;
+  String get targetIp => _targetIp;
+  int get targetPort => _targetPort;
   String get statusMessage => _statusMessage;
   String get hostIp =>
       _allIps.isNotEmpty ? _allIps[_currentIpIndex] : '127.0.0.1';
@@ -58,6 +65,8 @@ class ServerState extends ChangeNotifier {
     : _io = io ?? ServerIO() {
     if (initialConfig != null) {
       _port = initialConfig.port;
+      _targetIp = initialConfig.targetIp;
+      _targetPort = initialConfig.targetPort;
       _protocol = initialConfig.connectMode == 'TCP'
           ? ServerProtocol.tcp
           : ServerProtocol.udp;
@@ -65,6 +74,7 @@ class ServerState extends ChangeNotifier {
           ? LedSource.gameMemory
           : LedSource.preset;
       _gameLedPollFrequency = initialConfig.ledPollFrequency;
+      _ledSendFrequency = initialConfig.ledSendFrequency;
       _gameLedGamma = initialConfig.gameLedGamma;
     }
     _refreshIps();
@@ -114,8 +124,28 @@ class ServerState extends ChangeNotifier {
   }
 
   void setPort(int p) {
+    if (p < 1 || p > 65535) return;
     _port = p;
     _io.saveConfigPatch({'port': p});
+    notifyListeners();
+  }
+
+  void setTargetIp(String ip) {
+    final value = ip.trim();
+    if (value.isNotEmpty &&
+        InternetAddress.tryParse(value)?.type != InternetAddressType.IPv4) {
+      return;
+    }
+    if (_targetIp == value) return;
+    _targetIp = value;
+    _io.saveConfigPatch({'targetIp': value});
+    notifyListeners();
+  }
+
+  void setTargetPort(int p) {
+    if (p < 1 || p > 65535 || _targetPort == p) return;
+    _targetPort = p;
+    _io.saveConfigPatch({'targetPort': p});
     notifyListeners();
   }
 
@@ -130,6 +160,7 @@ class ServerState extends ChangeNotifier {
   void setLedSource(LedSource source) {
     if (_isRunning || _isTransitioning || _ledSource == source) return;
     _ledSource = source;
+    rust_api.setLedSource(game: source == LedSource.gameMemory);
     _io.saveConfigPatch({
       'ledSource': source == LedSource.gameMemory ? 'Game' : 'Present',
     });
@@ -144,6 +175,15 @@ class ServerState extends ChangeNotifier {
     if (_isRunning && _ledSource == LedSource.gameMemory) {
       _startGameLedPolling();
     }
+    notifyListeners();
+  }
+
+  void setLedSendFrequency(int frequency) {
+    final next = frequency.clamp(50, 1000).toInt();
+    if (_ledSendFrequency == next) return;
+    _ledSendFrequency = next;
+    _io.saveConfigPatch({'ledSendFrequency': next});
+    rust_api.setLedSendFrequency(frequency: next);
     notifyListeners();
   }
 
@@ -220,6 +260,10 @@ class ServerState extends ChangeNotifier {
     final success = await _io.toggleServer(
       _port,
       _protocol == ServerProtocol.udp,
+      gameLed: _ledSource == LedSource.gameMemory,
+      ledFrequency: _ledSendFrequency,
+      targetIp: _targetIp,
+      targetPort: _targetPort,
     );
 
     if (success) {
@@ -325,10 +369,15 @@ class ServerState extends ChangeNotifier {
 
   Future<bool> toggleSync() async {
     if (_isTransitioning || !_isRunning) return true;
+    if (_targetIp.trim().isEmpty || _targetPort < 1 || _targetPort > 65535) {
+      _showTipsSignal = true;
+      notifyListeners();
+      return false;
+    }
     _isTransitioning = true;
     notifyListeners();
 
-    final sent = await _io.toggleSync();
+    final sent = await _io.toggleSync(targetIp: _targetIp, targetPort: _targetPort);
     if (!sent) {
       _isTransitioning = false;
       _showTipsSignal = true;

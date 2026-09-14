@@ -8,6 +8,8 @@ import 'package:collection/collection.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'protocol.dart';
 
+// These functions are ignored because they are not marked as `pub`: `check_toggle_timeout`, `handle_toggle`
+
 Stream<SensorData> createSensorStream() =>
     RustLib.instance.api.crateApiCreateSensorStream();
 
@@ -21,6 +23,12 @@ Future<void> handleHandshake({required HandshakePayload incoming}) =>
     RustLib.instance.api.crateApiHandleHandshake(incoming: incoming);
 
 Future<bool> toggleSync() => RustLib.instance.api.crateApiToggleSync();
+
+Future<void> setLedSource({required bool game}) =>
+    RustLib.instance.api.crateApiSetLedSource(game: game);
+
+Future<void> setLedSendFrequency({required int frequency}) =>
+    RustLib.instance.api.crateApiSetLedSendFrequency(frequency: frequency);
 
 Future<GameLedData> readGameLedData() =>
     RustLib.instance.api.crateApiReadGameLedData();
